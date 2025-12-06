@@ -39,12 +39,19 @@ function resetGame() {
     gameLogic.updateUI(gameState);
 }
 
+let lastFrameTime = Date.now();
+
 function animate() {
     requestAnimationFrame(animate);
 
+    // Calculate delta time in seconds
+    const currentTime = Date.now();
+    const deltaTime = (currentTime - lastFrameTime) / 1000;
+    lastFrameTime = currentTime;
+
     if (!gameState.isWon) {
         // Update platform rotation
-        platformController.update();
+        platformController.update(deltaTime);
         platformController.applyRotationToPlatform(gameObjects.getPlatformGroup());
 
         // Update physics
@@ -52,7 +59,8 @@ function animate() {
             marblePhysics,
             gameState,
             gameObjects.getObstacles(),
-            gameObjects.getMarble()
+            gameObjects.getMarble(),
+            deltaTime
         );
 
         // Check win condition

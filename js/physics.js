@@ -6,7 +6,7 @@ class PhysicsEngine {
         this.rollingFriction = 0.995;
     }
 
-    update(marblePhysics, gameState, obstacles, marble) {
+    update(marblePhysics, gameState, obstacles, marble, deltaTime) {
         // Check if marble is on the platform
         const platformY = 0.5; // Platform top surface
         gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5;
@@ -22,23 +22,23 @@ class PhysicsEngine {
 
         if (gameState.ballGrounded) {
             // Apply friction when grounded
-            marblePhysics.velocity.x *= this.rollingFriction;
-            marblePhysics.velocity.z *= this.rollingFriction;
+            marblePhysics.velocity.x *= Math.pow(this.rollingFriction, deltaTime * 60);
+            marblePhysics.velocity.z *= Math.pow(this.rollingFriction, deltaTime * 60);
             marblePhysics.velocity.y = Math.max(marblePhysics.velocity.y, 0);
 
             // Apply gravity-based acceleration from platform tilt
-            marblePhysics.velocity.x += gravityX * 0.016;
-            marblePhysics.velocity.z += gravityZ * 0.016;
+            marblePhysics.velocity.x += gravityX * deltaTime;
+            marblePhysics.velocity.z += gravityZ * deltaTime;
         } else {
             // Apply gravity and air resistance
-            marblePhysics.velocity.x += gravityX * 0.016;
-            marblePhysics.velocity.z += gravityZ * 0.016;
-            marblePhysics.velocity.y -= this.gravity * 0.016;
-            marblePhysics.velocity.multiplyScalar(this.friction);
+            marblePhysics.velocity.x += gravityX * deltaTime;
+            marblePhysics.velocity.z += gravityZ * deltaTime;
+            marblePhysics.velocity.y -= this.gravity * deltaTime;
+            marblePhysics.velocity.multiplyScalar(Math.pow(this.friction, deltaTime * 60));
         }
 
         // Update position
-        marblePhysics.position.add(new THREE.Vector3(marblePhysics.velocity.x * 0.016, marblePhysics.velocity.y * 0.016, marblePhysics.velocity.z * 0.016));
+        marblePhysics.position.add(new THREE.Vector3(marblePhysics.velocity.x * deltaTime, marblePhysics.velocity.y * deltaTime, marblePhysics.velocity.z * deltaTime));
 
         // Boundary constraints (keep on platform)
         this.handleBoundaryCollision(marblePhysics);
