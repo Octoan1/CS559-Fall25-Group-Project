@@ -48,7 +48,7 @@ function resetGame() {
     gameObjects.getMarble().position.set(start.x, start.y, start.z);
     gameObjects.getPlatformGroup().rotation.x = 0;
     gameObjects.getPlatformGroup().rotation.z = 0;
-    if (ui && ui.setTimer) ui.setTimer(0);
+    if (ui && ui.setTimer) animate._startTime = performance.now();
     if (ui && ui.clearMessage) ui.clearMessage();
     gameLogic.updateUI(gameState);
 }
@@ -101,8 +101,7 @@ function animate() {
             const dz = gameObjects.getMarble().position.z - goal.z;
             const goalRadius = goal.radius ?? 0.8;
             const d2 = dx*dx + dz*dz;
-            if (!animate._finished && d2 < (goalRadius + marbleRadius)*(goalRadius + marbleRadius)) {
-                animate._finished = true;
+            if (d2 < (goalRadius + marbleRadius)*(goalRadius + marbleRadius)) {
                 gameState.win();
                 gameLogic.updateUI(gameState);
                 if (ui) {
