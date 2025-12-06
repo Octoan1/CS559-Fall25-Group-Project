@@ -9,6 +9,7 @@ let physicsEngine;
 let gameLogic;
 let ui;
 let levelData;
+let grid;
 
 async function initializeGame() {
     // load level (falls back to default if fails)
@@ -29,6 +30,15 @@ async function initializeGame() {
     physicsEngine = new PhysicsEngine();
     gameLogic = new GameLogic(levelData);
     ui = createUI();
+
+    // grid 
+    grid = []
+    for (let i = 0; i < 20; i++) {
+        grid[i] = []
+        for (let j = 0; j < 20; j++) {
+            grid[i][j] = j + 20*i
+        }    
+    }
 
     // wire reset button
     const resetMarble = () => {
@@ -132,6 +142,7 @@ function createGrid() {
     // 20x20 grid, 21 lines each direction
     const size = 20;
     const divisions = 20;
+    console.log(grid)
     gridHelper = new THREE.GridHelper(size, divisions, 0x00ff00, 0x00ff00);
     gridHelper.position.y = 0.01; // Slightly above platform
     gameObjects.getPlatformGroup().add(gridHelper);
