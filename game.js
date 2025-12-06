@@ -133,7 +133,7 @@ function createGrid() {
     const size = 20;
     const divisions = 20;
     gridHelper = new THREE.GridHelper(size, divisions, 0x00ff00, 0x00ff00);
-    gridHelper.position.y = 0.51; // Slightly above platform
+    gridHelper.position.y = 0.01; // Slightly above platform
     gameObjects.getPlatformGroup().add(gridHelper);
 }
 
