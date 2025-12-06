@@ -40,11 +40,7 @@ class PhysicsEngine {
         // Update position
         marblePhysics.position.add(new THREE.Vector3(marblePhysics.velocity.x * deltaTime, marblePhysics.velocity.y * deltaTime, marblePhysics.velocity.z * deltaTime));
 
-        // Boundary constraints (keep on platform)
-        this.handleBoundaryCollision(marblePhysics);
-
-        // Obstacle collision
-        this.handleObstacleCollision(marblePhysics, obstacles, marble);
+        // No boundary or obstacle collision
 
         // Platform collision (keep on platform)
         if (marblePhysics.position.y < platformY + 0.5) {
@@ -57,43 +53,5 @@ class PhysicsEngine {
         marble.position.copy(marblePhysics.position);
     }
 
-    handleBoundaryCollision(marblePhysics) {
-        const boundary = 10;
-        if (marblePhysics.position.x > boundary) {
-            marblePhysics.position.x = boundary;
-            marblePhysics.velocity.x *= -0.5;
-        }
-        if (marblePhysics.position.x < -boundary) {
-            marblePhysics.position.x = -boundary;
-            marblePhysics.velocity.x *= -0.5;
-        }
-        if (marblePhysics.position.z > boundary) {
-            marblePhysics.position.z = boundary;
-            marblePhysics.velocity.z *= -0.5;
-        }
-        if (marblePhysics.position.z < -boundary) {
-            marblePhysics.position.z = -boundary;
-            marblePhysics.velocity.z *= -0.5;
-        }
-    }
-
-    handleObstacleCollision(marblePhysics, obstacles, marble) {
-        for (let obs of obstacles) {
-            const dx = marblePhysics.position.x - obs.x;
-            const dz = marblePhysics.position.z - obs.z;
-            const minDist = marble.geometry.parameters.radius + obs.width / 2;
-            const zMinDist = marble.geometry.parameters.radius + obs.depth / 2;
-
-            if (Math.abs(dx) < minDist && Math.abs(dz) < zMinDist) {
-                // Collision detected
-                if (Math.abs(dx) > Math.abs(dz)) {
-                    marblePhysics.position.x = obs.x + (dx > 0 ? minDist : -minDist);
-                    marblePhysics.velocity.x *= -0.6;
-                } else {
-                    marblePhysics.position.z = obs.z + (dz > 0 ? zMinDist : -zMinDist);
-                    marblePhysics.velocity.z *= -0.6;
-                }
-            }
-        }
-    }
+    // No boundary or obstacle collision
 }

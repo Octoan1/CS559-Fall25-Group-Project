@@ -11,7 +11,7 @@ function loadLevels(url = 'OTHER/levels.json') {
     });
 }
 
-function loadLevel(index = 0, url = 'OTHER/levels.json') {
+function loadLevel(index = 0, url = 'levels.json') {
     return loadLevels(url).then(levels => {
         if (!levels.length) throw new Error('No levels found in levels.json');
         return levels[Math.min(index, levels.length - 1)];
