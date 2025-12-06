@@ -23,7 +23,7 @@ async function initializeGame() {
     sceneSetup = new SceneSetup();
     gameObjects = new GameObjects(sceneSetup.scene, levelData);
     gameState = new GameState();
-    marblePhysics = new MarblePhysics();
+    marblePhysics = new MarblePhysics(levelData);
     inputController = new InputController();
     platformController = new PlatformController(gameState, inputController);
     physicsEngine = new PhysicsEngine();

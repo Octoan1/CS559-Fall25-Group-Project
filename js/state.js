@@ -68,14 +68,14 @@ class GameState {
 
 // Marble physics state
 class MarblePhysics {
-    constructor() {
-        this.position = new THREE.Vector3(-8, 1.5, -8);
+    constructor(level = null) {
+        this.position = (level && level.start) ? new THREE.Vector3(level.start.x, level.start.y, level.start.z) : new THREE.Vector3(-8, 1.5, -8);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.mass = 1;
     }
 
     reset() {
-        this.position.set(-8, 1.5, -8);
+        (level && level.start) ? this.position.set(level.start.x, level.start.y, level.start.z) : this.position.set(-8, 1.5, -8);
         this.velocity.set(0, 0, 0);
     }
 
