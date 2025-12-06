@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marble Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            display: block;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        #status {
+            margin-top: 10px;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div>Marble Game</div>
+        <div id="status">Get the marble to the hole!</div>
+    </div>
+    <div id="controls">
+        <div>Arrow Keys: Rotate Platform</div>
+        <div>R: Reset Game</div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/physics.js"></script>
+    <script src="js/scene.js"></script>
+    <script src="js/gameObjects.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/platformController.js"></script>
+    <script src="js/gameLogic.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
