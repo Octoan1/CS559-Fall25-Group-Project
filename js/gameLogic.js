@@ -1,18 +1,22 @@
 // Game logic and win condition
 class GameLogic {
-    constructor() {
-        this.holeX = 8;
-        this.holeZ = 8;
-        this.holeRadius = 0.8;
+    constructor(level = null) {
+        if (level && level.goal) {
+            this.holeX = level.goal.x;
+            this.holeZ = level.goal.z;
+            this.holeRadius = level.goal.radius ?? 0.8;
+        } else {
+            this.holeX = 8;
+            this.holeZ = 8;
+            this.holeRadius = 0.8;
+        }
     }
 
     checkWinCondition(marblePhysics) {
-        const distToHole = Math.sqrt(
-            (marblePhysics.position.x - this.holeX) ** 2 + 
-            (marblePhysics.position.z - this.holeZ) ** 2
-        );
-        
-        return distToHole < this.holeRadius && marblePhysics.position.y < 1;
+        const dx = marblePhysics.position.x - this.holeX;
+        const dz = marblePhysics.position.z - this.holeZ;
+        const dist2 = dx*dx + dz*dz;
+        return dist2 < (this.holeRadius * this.holeRadius) && marblePhysics.position.y < 1;
     }
 
     updateUI(gameState) {
