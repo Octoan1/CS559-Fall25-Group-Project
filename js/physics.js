@@ -8,7 +8,7 @@ class PhysicsEngine {
 
     update(marblePhysics, gameState, obstacles, marble, deltaTime) {
         // Check if marble is on the platform
-        const platformY = 0.5; // Platform top surface
+        const platformY = 0.0; // Platform top surface (platform box has height 1 and is centered at y=-0.5)
         gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5;
 
         // Calculate gravity in world space

@@ -31,7 +31,7 @@ class GameObjects {
         const marble = new THREE.Mesh(marbleGeometry, marbleMaterial);
         marble.castShadow = true;
         marble.receiveShadow = true;
-        const start = (this.level && this.level.start) ? this.level.start : { x: -8, y: 1.5, z: -8 };
+        const start = (this.level && this.level.start) ? this.level.start : { x: -8, y: 1.0, z: -8 };
         marble.position.set(start.x, start.y, start.z);
         this.platformGroup.add(marble);
         return marble;
