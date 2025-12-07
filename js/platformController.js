@@ -13,10 +13,10 @@ class PlatformController {
         let targetRotationZ = this.gameState.getTargetRotation().z;
 
         // Support Arrow keys and WASD (case-insensitive)
-        const rightPressed = keys['ArrowRight'] || keys['d'] || keys['D'];
-        const leftPressed = keys['ArrowLeft'] || keys['a'] || keys['A'];
-        const upPressed = keys['ArrowUp'] || keys['w'] || keys['W'];
-        const downPressed = keys['ArrowDown'] || keys['s'] || keys['S'];
+        const rightPressed = keys['ArrowRight'] || keys['d'];
+        const leftPressed = keys['ArrowLeft'] || keys['a'];
+        const upPressed = keys['ArrowUp'] || keys['w'];
+        const downPressed = keys['ArrowDown'] || keys['s'];
 
         // Update target rotations based on input (scaled by deltaTime)
         if (rightPressed) {
