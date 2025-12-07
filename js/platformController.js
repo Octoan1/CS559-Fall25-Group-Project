@@ -12,26 +12,32 @@ class PlatformController {
         let targetRotationX = this.gameState.getTargetRotation().x;
         let targetRotationZ = this.gameState.getTargetRotation().z;
 
+        // Support Arrow keys and WASD (case-insensitive)
+        const rightPressed = keys['ArrowRight'] || keys['d'] || keys['D'];
+        const leftPressed = keys['ArrowLeft'] || keys['a'] || keys['A'];
+        const upPressed = keys['ArrowUp'] || keys['w'] || keys['W'];
+        const downPressed = keys['ArrowDown'] || keys['s'] || keys['S'];
+
         // Update target rotations based on input (scaled by deltaTime)
-        if (keys['ArrowRight']) {
+        if (rightPressed) {
             targetRotationZ = Math.max(targetRotationZ - this.rotationSpeed * deltaTime * 60, -this.maxRotation);
         }
-        if (keys['ArrowLeft']) {
+        if (leftPressed) {
             targetRotationZ = Math.min(targetRotationZ + this.rotationSpeed * deltaTime * 60, this.maxRotation);
         }
-        if (keys['ArrowUp']) {
+        if (upPressed) {
             targetRotationX = Math.max(targetRotationX - this.rotationSpeed * deltaTime * 60, -this.maxRotation);
         }
-        if (keys['ArrowDown']) {
+        if (downPressed) {
             targetRotationX = Math.min(targetRotationX + this.rotationSpeed * deltaTime * 60, this.maxRotation);
         }
 
         // Smooth return to neutral (damping) - scaled by deltaTime
         const dampingFactor = Math.pow(0.95, deltaTime * 60);
-        if (!keys['ArrowRight'] && !keys['ArrowLeft']) {
+        if (!rightPressed && !leftPressed) {
             targetRotationZ *= dampingFactor;
         }
-        if (!keys['ArrowUp'] && !keys['ArrowDown']) {
+        if (!upPressed && !downPressed) {
             targetRotationX *= dampingFactor;
         }
 
