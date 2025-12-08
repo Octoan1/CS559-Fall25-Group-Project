@@ -116,11 +116,19 @@ class GameObjects {
 
     createObstacles() {
         if (this.level && Array.isArray(this.level.walls) && this.level.walls.length) {
+            const rows = this.level.gridRows || 20;
+            const cols = this.level.gridCols || 20;
+            const cellSizeX = this.level.cellSizeX || (20 / cols);
+            const cellSizeZ = this.level.cellSizeZ || (20 / rows);
             for (const w of this.level.walls) {
-                // walls are [cx, cz, width, depth]
-                const [cx, cz, width, depth] = w;
+                // walls are [col, row, width, depth] in grid units
+                const [col, row, wUnits = 1, dUnits = 1] = w;
+                const x = (col + 0.5 - cols / 2) * cellSizeX;
+                const z = (row + 0.5 - rows / 2) * cellSizeZ;
+                const width = wUnits * cellSizeX;
+                const depth = dUnits * cellSizeZ;
                 // use a thin wall height to act as obstacle
-                this.createObstacle(cx, cz, width, depth, 0.5);
+                this.createObstacle(x, z, width, depth, 0.5);
             }
             return;
         }
