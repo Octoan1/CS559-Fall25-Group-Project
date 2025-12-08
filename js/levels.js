@@ -127,7 +127,7 @@ function generateProceduralLevel(config) {
         while (placed < obstacleCount) {
             const r = randomInt(1, rows - 2);
             const c = randomInt(1, cols - 2);
-            if (grid[r][c]) continue; // Skip if already occupied (includes reserved cells)
+            if (grid[r][c] !== 0) continue; // Only place on empty cells (value 0)
             grid[r][c] = 3; // Mark obstacles with value 3 (distinct from border walls = 1)
             placed++;
         }
@@ -155,8 +155,7 @@ function generateProceduralLevel(config) {
             while (placed < currentObstacles) {
                 const r = randomInt(1, rows - 2);
                 const c = randomInt(1, cols - 2);
-                if ((r === start.r && c === start.c) || (r === goal.r && c === goal.c)) continue;
-                if (grid[r][c]) continue;
+                if (grid[r][c] !== 0) continue; // Only place on empty cells (value 0)
                 grid[r][c] = 3;
                 placed++;
             }
