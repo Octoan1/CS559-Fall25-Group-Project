@@ -82,12 +82,14 @@ class PhysicsEngine {
                     marblePhysics.position.y += ny * penetration;
                     marblePhysics.position.z += nz * penetration;
 
-                    // Remove velocity component into the obstacle (simple response)
+                    // Bounce response - reflect velocity with damping
                     const vn = marblePhysics.velocity.x * nx + marblePhysics.velocity.y * ny + marblePhysics.velocity.z * nz;
                     if (vn < 0) {
-                        marblePhysics.velocity.x -= nx * vn;
-                        marblePhysics.velocity.y -= ny * vn;
-                        marblePhysics.velocity.z -= nz * vn;
+                        const bounceCoefficient = 0.5; // Bounce back at 50% velocity
+                        // Remove the incoming velocity and add back a portion in the opposite direction
+                        marblePhysics.velocity.x -= nx * vn * (1 + bounceCoefficient);
+                        marblePhysics.velocity.y -= ny * vn * (1 + bounceCoefficient);
+                        marblePhysics.velocity.z -= nz * vn * (1 + bounceCoefficient);
                     }
                 }
             }
