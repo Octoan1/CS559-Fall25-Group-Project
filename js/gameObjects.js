@@ -51,14 +51,20 @@ class GameObjects {
         return hole;
     }
 
-    createObstacle(x, z, width, depth, height = 0.3) {
-        const geometry = new THREE.BoxGeometry(width, height, depth);
-        const material = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(x, height / 2, z);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        
+    // Create an obstacle. If `visible` is false, no THREE.Mesh is created
+    // and the obstacle exists only as logical collision data.
+    createObstacle(x, z, width, depth, height = 0.3, visible = true) {
+        let mesh = null;
+        if (visible) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
+            mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, height / 2, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.platformGroup.add(mesh);
+        }
+
         this.obstacles.push({
             mesh: mesh,
             x: x,
@@ -67,7 +73,45 @@ class GameObjects {
             depth: depth,
             height: height,
         });
-        this.platformGroup.add(mesh);
+    }
+
+    // Populate obstacles from a 2D grid array. Each grid cell that is truthy
+    // will spawn an obstacle. The grid should be an array of rows: grid[row][col].
+    // Options:
+    //  - cellSize: size in world units of each grid cell (default 1)
+    //  - obstacleSize: {w,d,h} default {1,1,0.5}
+    //  - visible: whether to create visible meshes (default true)
+    populateFromGrid(grid, options = {}) {
+        if (!Array.isArray(grid) || !grid.length) return;
+        const rows = grid.length;
+        const cols = grid[0].length;
+        const cellSize = options.cellSize || 1;
+        const obstacleSize = options.obstacleSize || { w: 1, d: 1, h: 0.5 };
+        const visible = options.visible !== undefined ? options.visible : true;
+
+        // Remove existing obstacle meshes from platformGroup
+        for (const obs of this.obstacles) {
+            if (obs.mesh) this.platformGroup.remove(obs.mesh);
+        }
+        this.obstacles = [];
+
+        // Map grid indices to world coordinates. Grid is centered on the platform.
+        const halfCols = (cols - 1) / 2;
+        const halfRows = (rows - 1) / 2;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const cell = grid[r][c];
+                if (!cell) continue; // skip empty
+
+                // Compute world position (x,z) for cell center.
+                // Offset by half a cell so obstacles sit in the middle of grid cells
+                    const x = (c - halfCols) * cellSize;
+                    const z = (r - halfRows) * cellSize;
+
+                this.createObstacle(x, z, obstacleSize.w, obstacleSize.d, obstacleSize.h, visible);
+            }
+        }
     }
 
     createObstacles() {
