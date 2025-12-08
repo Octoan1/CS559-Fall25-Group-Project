@@ -40,7 +40,57 @@ class PhysicsEngine {
         // Update position
         marblePhysics.position.add(new THREE.Vector3(marblePhysics.velocity.x * deltaTime, marblePhysics.velocity.y * deltaTime, marblePhysics.velocity.z * deltaTime));
 
-        // No boundary or obstacle collision
+        // Obstacle collision (simple sphere vs AABB)
+        // Marble is treated as a sphere with radius 0.5 (matches geometry)
+        // const marbleRadius = 0.5;
+        // if (Array.isArray(obstacles)) {
+        //     for (const obs of obstacles) {
+        //         if (!obs || !obs.mesh) continue;
+        //         // obstacle AABB in world space (mesh position is relative to platformGroup)
+        //         const ox = obs.mesh.position.x;
+        //         const oy = obs.mesh.position.y;
+        //         const oz = obs.mesh.position.z;
+        //         const halfX = (obs.width || 0) / 2;
+        //         const halfY = (obs.height || 0) / 2;
+        //         const halfZ = (obs.depth || 0) / 2;
+
+        //         const minX = ox - halfX, maxX = ox + halfX;
+        //         const minY = oy - halfY, maxY = oy + halfY;
+        //         const minZ = oz - halfZ, maxZ = oz + halfZ;
+
+        //         // Closest point on AABB to sphere center
+        //         const cx = Math.max(minX, Math.min(marblePhysics.position.x, maxX));
+        //         const cy = Math.max(minY, Math.min(marblePhysics.position.y, maxY));
+        //         const cz = Math.max(minZ, Math.min(marblePhysics.position.z, maxZ));
+
+        //         const dx = marblePhysics.position.x - cx;
+        //         const dy = marblePhysics.position.y - cy;
+        //         const dz = marblePhysics.position.z - cz;
+        //         const distSq = dx*dx + dy*dy + dz*dz;
+
+        //         if (distSq < marbleRadius * marbleRadius) {
+        //             const dist = Math.sqrt(distSq) || 1e-6;
+        //             const penetration = marbleRadius - dist;
+        //             // normal from obstacle to marble center
+        //             const nx = dx / dist;
+        //             const ny = dy / dist;
+        //             const nz = dz / dist;
+
+        //             // Move marble out of obstacle along normal
+        //             marblePhysics.position.x += nx * penetration;
+        //             marblePhysics.position.y += ny * penetration;
+        //             marblePhysics.position.z += nz * penetration;
+
+        //             // Remove velocity component into the obstacle (simple impulse-less response)
+        //             const vn = marblePhysics.velocity.x * nx + marblePhysics.velocity.y * ny + marblePhysics.velocity.z * nz;
+        //             if (vn < 0) {
+        //                 marblePhysics.velocity.x -= nx * vn;
+        //                 marblePhysics.velocity.y -= ny * vn;
+        //                 marblePhysics.velocity.z -= nz * vn;
+        //             }
+        //         }
+        //     }
+        // }
 
         // Platform collision (keep on platform)
         if (marblePhysics.position.y < platformY + 0.5) {

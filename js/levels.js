@@ -1,6 +1,6 @@
-// Simple levels loader (global) - loads `OTHER/levels.json`
+// Simple levels loader (global) - loads `levels.json`
 let __cachedLevels = null;
-function loadLevels(url = 'OTHER/levels.json') {
+function loadLevels(url = 'levels.json') {
     if (__cachedLevels) return Promise.resolve(__cachedLevels);
     return fetch(url).then(res => {
         if (!res.ok) throw new Error(`Failed to load levels from ${url}`);

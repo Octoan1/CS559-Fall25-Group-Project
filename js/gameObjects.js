@@ -8,7 +8,8 @@ class GameObjects {
         this.createPlatform();
         this.marble = this.createMarble();
         this.hole = this.createHole();
-        // No obstacles or walls
+        this.obstacles = [];
+        this.createObstacles();
     }
 
     createPlatform() {
@@ -50,7 +51,44 @@ class GameObjects {
         return hole;
     }
 
-    // No obstacles or walls
+    createObstacle(x, z, width, depth, height = 0.3) {
+        const geometry = new THREE.BoxGeometry(width, height, depth);
+        const material = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(x, height / 2, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        
+        this.obstacles.push({
+            mesh: mesh,
+            x: x,
+            z: z,
+            width: width,
+            depth: depth,
+            height: height,
+        });
+        this.platformGroup.add(mesh);
+    }
+
+    createObstacles() {
+        if (this.level && Array.isArray(this.level.walls) && this.level.walls.length) {
+            for (const w of this.level.walls) {
+                // walls are [cx, cz, width, depth]
+                const [cx, cz, width, depth] = w;
+                // use a thin wall height to act as obstacle
+                this.createObstacle(cx, cz, width, depth, 0.5);
+            }
+            return;
+        }
+
+        // default obstacle layout
+        this.createObstacle(0, -5, 2, 2);      // Center obstacle
+        this.createObstacle(-5, 0, 2, 2);      // Left obstacle
+        this.createObstacle(5, 0, 2, 2);       // Right obstacle
+        this.createObstacle(0, 5, 1.5, 1.5);   // Upper center
+        this.createObstacle(-3, 3, 1, 1);      // Upper left
+        this.createObstacle(3, 3, 1, 1);       // Upper right
+    }
 
     getPlatformGroup() {
         return this.platformGroup;
