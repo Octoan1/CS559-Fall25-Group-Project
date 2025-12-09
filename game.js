@@ -10,101 +10,97 @@ let gameLogic;
 let ui;
 let levelData;
 let grid;
+let levels = [];
+let currentLevelIndex = 0;
 
 async function initializeGame() {
-    // load level (falls back to default if fails)
+    // Initialize scene and UI first
+    sceneSetup = new SceneSetup();
+    ui = createUI();
+
+    // Load all levels (procedural or static)
     try {
-        levelData = await loadLevel(0);
+        levels = await loadLevels();
     } catch (err) {
         console.warn('Could not load levels.json, using defaults.', err);
-        levelData = null;
+        levels = [];
     }
 
-    // Initialize all game systems
-    sceneSetup = new SceneSetup();
-    gameObjects = new GameObjects(sceneSetup.scene, levelData);
+    // Populate level selector UI
+    const levelNames = levels.map((l, i) => l.name || `Level ${i}`);
+    if (ui.setLevelOptions) ui.setLevelOptions(levelNames);
+    if (ui.onLevelChange) ui.onLevelChange((idx) => switchLevel(idx));
+
+    // Create common systems
     gameState = new GameState();
-    marblePhysics = new MarblePhysics(levelData);
+    marblePhysics = new MarblePhysics();
     inputController = new InputController();
     platformController = new PlatformController(gameState, inputController);
     physicsEngine = new PhysicsEngine();
-    gameLogic = new GameLogic(levelData);
-    ui = createUI();
 
-    // grid is optionally provided by levelData (walls as grid cell coords)
-    grid = null;
-    if (levelData && Array.isArray(levelData.walls)) {
-        // Determine grid size (rows x cols)
-        const rows = levelData.gridRows || 20;
-        const cols = levelData.gridCols || levelData.gridRows || 20;
-        grid = new Array(rows);
-        for (let r = 0; r < rows; r++) grid[r] = new Array(cols).fill(0);
-
-        for (const w of levelData.walls) {
-            if (!Array.isArray(w)) continue;
-            // Accept [row, col] pairs. Ignore malformed entries.
-            if (w.length >= 2 && Number.isFinite(w[0]) && Number.isFinite(w[1])) {
-                const rr = Math.floor(w[0]);
-                const cc = Math.floor(w[1]);
-                if (rr >= 0 && rr < rows && cc >= 0 && cc < cols) {
-                    grid[rr][cc] = 1;
-                }
-            }
-        }
-
-        // Populate obstacles from the grid (visible meshes)
-        const cellSize = 1;
-        gameObjects.populateFromGrid(grid, { cellSize: cellSize, obstacleSize: { w: 1, d: 1, h: 0.5 }, visible: true });
-
-        // Helper to map grid (row,col) -> world (x,z) using same logic as populateFromGrid
-        const halfCols = (cols - 1) / 2;
-        const halfRows = (rows - 1) / 2;
-        const gridToWorld = (r, c) => {
-            return { x: (c - halfCols) * cellSize, z: (r - halfRows) * cellSize };
-        };
-
-        // If start is provided as [row,col], convert to world coords and place marble
-        if (Array.isArray(levelData.start) && levelData.start.length >= 2) {
-            const sr = Math.floor(levelData.start[0]);
-            const sc = Math.floor(levelData.start[1]);
-            if (sr >= 0 && sr < rows && sc >= 0 && sc < cols) {
-                const pos = gridToWorld(sr, sc);
-                const marbleY = 0.5; // marble radius -> sits on platform top
-                levelData.start = { x: pos.x, y: marbleY, z: pos.z };
-                // Update existing marble and physics state if already created
-                if (gameObjects && gameObjects.getMarble()) {
-                    gameObjects.getMarble().position.set(pos.x, marbleY, pos.z);
-                }
-                if (marblePhysics && marblePhysics.position) {
-                    marblePhysics.position.set(pos.x, marbleY, pos.z);
-                }
-            }
-        }
-
-        // If goal is provided as [row,col], convert to world coords and place hole
-        if (Array.isArray(levelData.goal) && levelData.goal.length >= 2) {
-            const gr = Math.floor(levelData.goal[0]);
-            const gc = Math.floor(levelData.goal[1]);
-            if (gr >= 0 && gr < rows && gc >= 0 && gc < cols) {
-                const pos = gridToWorld(gr, gc);
-                const goalY = 0.05; // hole top default
-                const goalRadius = (levelData.goal && levelData.goal.radius) ? levelData.goal.radius : 0.8;
-                levelData.goal = { x: pos.x, y: goalY, z: pos.z, radius: goalRadius };
-                if (gameObjects && gameObjects.getHole()) {
-                    gameObjects.getHole().position.set(pos.x, goalY, pos.z);
-                }
-            }
-        }
-    }
+    // Create initial level
+    currentLevelIndex = 0;
+    if (ui.setSelectedLevel) ui.setSelectedLevel(currentLevelIndex);
+    await switchLevel(currentLevelIndex);
 
     // wire reset button
-    const resetMarble = () => {
-        resetGame();
-    };
+    const resetMarble = () => resetGame();
     ui.onReset(resetMarble);
 
     // Start game loop
     animate();
+}
+
+async function switchLevel(index) {
+    if (!levels || index < 0 || index >= levels.length) return;
+    currentLevelIndex = index;
+    levelData = levels[index];
+
+    // Remove previous gameObjects from scene (if any)
+    try {
+        if (gameObjects && gameObjects.getPlatformGroup) {
+            sceneSetup.scene.remove(gameObjects.getPlatformGroup());
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    // Create new game objects for this level
+    gameObjects = new GameObjects(sceneSetup.scene, levelData);
+    gameLogic = new GameLogic(levelData);
+
+    // Reset game state and marble physics to level start
+    gameState.reset();
+    if (Array.isArray(levelData.start) && levelData.start.length >= 2) {
+        // grid coords handled in level normalizer; keep as-is
+    }
+    const start = (levelData && levelData.start) ? levelData.start : { x: -8, y: 1.5, z: -8 };
+    marblePhysics.position.set(start.x, start.y, start.z);
+    marblePhysics.velocity.set(0,0,0);
+
+    // If the level contains a grid of walls, populate visible obstacles
+    if (levelData && Array.isArray(levelData.walls) && levelData.walls.length) {
+        const rows = levelData.gridRows || 20;
+        const cols = levelData.gridCols || (levelData.gridRows || 20);
+        const gridArr = new Array(rows);
+        for (let r = 0; r < rows; r++) gridArr[r] = new Array(cols).fill(0);
+        for (const w of levelData.walls) {
+            if (!Array.isArray(w)) continue;
+            const col = Math.floor(w[0]);
+            const row = Math.floor(w[1]);
+            if (row >= 0 && row < rows && col >= 0 && col < cols) gridArr[row][col] = 1;
+        }
+        // cellSize chosen to match GameObjects.createObstacles mapping (20 / cols etc.)
+        const cellSize = 1; // matches populateFromGrid mapping used elsewhere
+        gameObjects.populateFromGrid(gridArr, { cellSize: cellSize, obstacleSize: { w: 1, d: 1, h: 0.5 }, visible: true });
+    }
+
+    // Update UI selection
+    if (ui.setSelectedLevel) ui.setSelectedLevel(index);
+
+    // Clear UI timer/message
+    if (ui.setTimer) ui.setTimer(0);
+    if (ui.clearMessage) ui.clearMessage();
 }
 
 function resetGame() {

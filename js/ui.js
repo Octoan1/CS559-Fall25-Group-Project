@@ -3,6 +3,7 @@ function createUI() {
     const timerEl = document.getElementById('timer');
     const messageEl = document.getElementById('status');
     const resetBtn = document.getElementById('resetBtn');
+    const levelSelect = document.getElementById('levelSelect');
 
     const setTimer = (seconds) => {
         if (!timerEl) return;
@@ -14,8 +15,20 @@ function createUI() {
     const clearMessage = () => { if (messageEl) messageEl.textContent = ''; };
 
     const onReset = (fn) => { if (resetBtn) resetBtn.addEventListener('click', fn); };
+    const setLevelOptions = (options = []) => {
+        if (!levelSelect) return;
+        levelSelect.innerHTML = '';
+        options.forEach((opt, i) => {
+            const o = document.createElement('option');
+            o.value = String(i);
+            o.textContent = opt;
+            levelSelect.appendChild(o);
+        });
+    };
+    const onLevelChange = (fn) => { if (!levelSelect) return; levelSelect.addEventListener('change', (e) => fn(Number(e.target.value))); };
+    const setSelectedLevel = (index) => { if (!levelSelect) return; levelSelect.value = String(index); };
 
-    return { setTimer, setMessage, clearMessage, onReset };
+    return { setTimer, setMessage, clearMessage, onReset, setLevelOptions, onLevelChange, setSelectedLevel };
 }
 
 window.createUI = createUI;
