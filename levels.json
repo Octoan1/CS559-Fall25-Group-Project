@@ -1,6 +1,15 @@
 {
   "levels": [
     {
+      "name": "Procedural",
+      "procedural": true,
+      "gridRows": 20,
+      "gridCols": 20,
+      "minObstacles": 10,
+      "maxObstacles": 20,
+      "retries": 100
+    },
+    {
       "name": "Maze",
       "start": { "x": 1, "y": 1.0, "z": 1 },
       "goal": { "x": 17, "y": 0, "z": 17, "radius": 0.8 },
@@ -83,15 +92,6 @@
 
         [10,10], [9,10], [11,10], [10,9], [10,11]
       ]
-    },
-    {
-      "name": "Procedural",
-      "procedural": true,
-      "gridRows": 20,
-      "gridCols": 20,
-      "minObstacles": 10,
-      "maxObstacles": 20,
-      "retries": 100
     }
   ]
 }
