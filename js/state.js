@@ -41,6 +41,9 @@ class GameState {
         this.targetRotationX = 0;
         this.targetRotationZ = 0;
         this.ballGrounded = false;
+        this.isTransitioning = false;
+        this.transitionTime = 0;
+        this.transitionDuration = 2.0; // seconds
     }
 
     reset() {
@@ -50,10 +53,31 @@ class GameState {
         this.targetRotationX = 0;
         this.targetRotationZ = 0;
         this.ballGrounded = false;
+        this.isTransitioning = false;
+        this.transitionTime = 0;
     }
 
     win() {
         this.isWon = true;
+    }
+
+    startTransition() {
+        this.isTransitioning = true;
+        this.transitionTime = 0;
+    }
+
+    updateTransition(deltaTime) {
+        if (this.isTransitioning) {
+            this.transitionTime += deltaTime;
+        }
+    }
+
+    isTransitionComplete() {
+        return this.transitionTime >= this.transitionDuration;
+    }
+
+    getTransitionProgress() {
+        return Math.min(this.transitionTime / this.transitionDuration, 1.0);
     }
 
     setRotation(x, z) {

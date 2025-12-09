@@ -170,13 +170,13 @@ function generateProceduralLevel(config) {
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 if (grid[r][c] === 3) {
-                    walls.push([c, r]);
+                    walls.push([r, c]);
                 } else if ((r === 0 || r === rows - 1 || c === 0 || c === cols - 1) && grid[r][c] === 1) {
-                    walls.push([c, r]);
+                    walls.push([r, c]);
                 }
             }
         }
-
+        
         return {
             name: `Procedural-${Date.now()}`,
             gridRows: rows,
@@ -207,13 +207,12 @@ function normalizeLevelsData(data) {
 }
 
 function loadLevels(url = 'levels.json') {
-    if (__cachedLevels) return Promise.resolve(__cachedLevels);
+    // Always regenerate levels, don't cache
     return fetch(url).then(res => {
         if (!res.ok) throw new Error(`Failed to load levels from ${url}`);
         return res.json();
     }).then(data => {
-        __cachedLevels = normalizeLevelsData(data);
-        return __cachedLevels;
+        return normalizeLevelsData(data);
     });
 }
 
