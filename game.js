@@ -46,6 +46,35 @@ async function initializeGame() {
     // wire reset button
     const resetMarble = () => resetGame();
     ui.onReset(resetMarble);
+    
+    // pressing 'n' teleports the marble into the hole (debug shortcut)
+    window.addEventListener('keydown', (e) => {
+        if (!(e.key && e.key.length === 1 && e.key.toLowerCase() === 'n')) return;
+        try {
+            if (!levelData || !levelData.goal) return;
+
+            const goal = levelData.goal;
+            const gx = goal.x;
+            const gz = goal.z;
+            const gy = (typeof goal.y === 'number') ? goal.y : 0.05;
+
+            // Move marble mesh and physics position directly into the hole and slightly below platform
+            const marble = gameObjects && gameObjects.getMarble && gameObjects.getMarble();
+            if (marble) {
+                // place ball at goal x/z and below platform so win condition triggers
+                marble.position.set(gx, gy - 1.0, gz);
+            }
+            if (marblePhysics && marblePhysics.position) {
+                marblePhysics.position.set(gx, gy - 1.0, gz);
+                marblePhysics.velocity.set(0, -5, 0);
+            }
+
+            // Ensure animate loop notices movement immediately
+            animate._started = true;
+        } catch (err) {
+            console.warn('Failed to teleport marble to hole', err);
+        }
+    });
 
     // Start game loop
     animate();
@@ -437,21 +466,103 @@ function animate() {
 
     // Render scene
     sceneSetup.render(sceneSetup.scene, sceneSetup.camera);
+    // Update DOM grid labels to follow camera/platform
+    if (showGridCoords && gridLabelElements) updateGridLabels();
 }
 
 // Grid debugging
 let gridHelper = null;
-let showGrid = false;
+let showGridLines = false; // 'g' toggles grid lines
+let showGridCoords = false; // 'h' toggles coordinate labels
+let gridLabelOverlay = null;
+let gridLabelElements = null; // array of {el, r, c}
 
-function createGrid() {
+function createGridLines() {
     if (gridHelper) return;
     // 20x20 grid, 21 lines each direction
     const size = 20;
     const divisions = 20;
-    console.log(grid)
     gridHelper = new THREE.GridHelper(size, divisions, 0x00ff00, 0x00ff00);
     gridHelper.position.y = 0.01; // Slightly above platform
     gameObjects.getPlatformGroup().add(gridHelper);
+}
+
+function removeGridLines() {
+    if (gridHelper) {
+        gameObjects.getPlatformGroup().remove(gridHelper);
+        gridHelper = null;
+    }
+}
+
+function createGridLabels() {
+    // don't recreate if overlay exists
+    if (gridLabelOverlay) return;
+
+    // 20x20 defaults
+    const size = 20;
+    const divisions = 20;
+    const rows = (Array.isArray(grid) && grid.length) ? grid.length : divisions;
+    const cols = (Array.isArray(grid) && grid[0] && grid[0].length) ? grid[0].length : divisions;
+    const cellSize = size / divisions;
+
+    // create overlay container positioned over the renderer
+    gridLabelElements = [];
+    gridLabelOverlay = document.createElement('div');
+    gridLabelOverlay.style.position = 'absolute';
+    gridLabelOverlay.style.left = '0';
+    gridLabelOverlay.style.top = '0';
+    gridLabelOverlay.style.pointerEvents = 'none';
+    gridLabelOverlay.style.width = '100%';
+    gridLabelOverlay.style.height = '100%';
+    gridLabelOverlay.className = 'grid-label-overlay';
+
+    // Append overlay after the renderer element so it sits on top
+    const rendererEl = sceneSetup && sceneSetup.renderer && sceneSetup.renderer.domElement;
+    if (rendererEl && rendererEl.parentElement) {
+        rendererEl.parentElement.style.position = rendererEl.parentElement.style.position || 'relative';
+        rendererEl.parentElement.appendChild(gridLabelOverlay);
+    } else {
+        document.body.appendChild(gridLabelOverlay);
+    }
+
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            // If we have a grid array, only label occupied cells to reduce clutter
+            if (Array.isArray(grid) && grid.length) {
+                if (!grid[r] || !grid[r][c]) continue;
+            }
+
+            const label = document.createElement('div');
+            label.className = 'grid-cell-label';
+            label.textContent = `[${c},${r}]`;
+            Object.assign(label.style, {
+                position: 'absolute',
+                transform: 'translate(-50%, -50%)',
+                padding: '1px 4px',
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                fontSize: '12px',
+                lineHeight: '12px',
+                borderRadius: '3px',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap'
+            });
+
+            gridLabelOverlay.appendChild(label);
+            gridLabelElements.push({ el: label, r, c, cellSize, rows, cols });
+        }
+    }
+
+    // initial positioning
+    updateGridLabels();
+}
+
+function removeGridLabels() {
+    if (gridLabelOverlay) {
+        if (gridLabelOverlay.parentElement) gridLabelOverlay.parentElement.removeChild(gridLabelOverlay);
+        gridLabelOverlay = null;
+    }
+    gridLabelElements = null;
 }
 
 function removeGrid() {
@@ -459,18 +570,65 @@ function removeGrid() {
         gameObjects.getPlatformGroup().remove(gridHelper);
         gridHelper = null;
     }
+    if (gridLabelOverlay) {
+        if (gridLabelOverlay.parentElement) gridLabelOverlay.parentElement.removeChild(gridLabelOverlay);
+        gridLabelOverlay = null;
+    }
+    gridLabelElements = null;
+}
+
+function updateGridLabels() {
+    if (!gridLabelElements || !gridLabelElements.length) return;
+    const camera = sceneSetup && sceneSetup.camera;
+    const rendererEl = sceneSetup && sceneSetup.renderer && sceneSetup.renderer.domElement;
+    const platformGroup = gameObjects && gameObjects.getPlatformGroup && gameObjects.getPlatformGroup();
+    if (!camera || !rendererEl || !platformGroup) return;
+
+    const rect = rendererEl.getBoundingClientRect();
+
+    // temp vector to avoid allocations in loop
+    const vec = new THREE.Vector3();
+
+    for (const item of gridLabelElements) {
+        const { el, r, c, cellSize, rows, cols } = item;
+
+        // compute cell center in platform-local coordinates
+        const halfCols = cols / 2;
+        const halfRows = rows / 2;
+        const x = (c + 0.5 - halfCols) * cellSize;
+        const z = (r + 0.5 - halfRows) * cellSize;
+        vec.set(x, 0.1, z);
+
+        // transform to world and project to NDC
+        platformGroup.localToWorld(vec);
+        vec.project(camera);
+
+        // hide if behind camera
+        if (vec.z < -1 || vec.z > 1) {
+            el.style.display = 'none';
+            continue;
+        }
+
+        const screenX = (vec.x * 0.5 + 0.5) * rect.width + rect.left;
+        const screenY = (-vec.y * 0.5 + 0.5) * rect.height + rect.top;
+
+        el.style.display = '';
+        el.style.left = `${Math.round(screenX)}px`;
+        el.style.top = `${Math.round(screenY)}px`;
+    }
 }
 
 window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'g') {
-        showGrid = !showGrid;
-        if (showGrid) {
-            createGrid();
-        } else {
-            removeGrid();
-        }
+    const k = (e.key || '').toLowerCase();
+    if (k === 'g') {
+        showGridLines = !showGridLines;
+        if (showGridLines) createGridLines(); else removeGridLines();
     }
-    if (e.key.toLowerCase() === 'r') {
+    if (k === 'h') {
+        showGridCoords = !showGridCoords;
+        if (showGridCoords) createGridLabels(); else removeGridLabels();
+    }
+    if (k === 'r') {
         // Reset the game (same as clicking the reset button)
         resetGame();
     }
