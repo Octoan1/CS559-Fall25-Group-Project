@@ -207,13 +207,12 @@ function normalizeLevelsData(data) {
 }
 
 function loadLevels(url = 'levels.json') {
-    if (__cachedLevels) return Promise.resolve(__cachedLevels);
+    // Always regenerate levels, don't cache
     return fetch(url).then(res => {
         if (!res.ok) throw new Error(`Failed to load levels from ${url}`);
         return res.json();
     }).then(data => {
-        __cachedLevels = normalizeLevelsData(data);
-        return __cachedLevels;
+        return normalizeLevelsData(data);
     });
 }
 

@@ -30,6 +30,7 @@ async function initializeGame() {
     physicsEngine = new PhysicsEngine();
     gameLogic = new GameLogic(levelData);
     ui = createUI();
+    console.log(levelData);
 
     // grid is optionally provided by levelData (walls as grid cell coords)
     grid = null;
@@ -108,6 +109,7 @@ async function initializeGame() {
 }
 
 function resetGame() {
+    console.log(levelData);
     gameState.reset();
     marblePhysics.reset();
     // reset marble position to level start if available
@@ -117,7 +119,58 @@ function resetGame() {
     gameObjects.getPlatformGroup().rotation.z = 0;
     if (ui && ui.setTimer) animate._startTime = performance.now();
     if (ui && ui.clearMessage) ui.clearMessage();
+    animate._started = false;
+    animate._finished = false;
     gameLogic.updateUI(gameState);
+}
+
+async function loadNextLevel() {
+    try {
+        // Clear cached levels to force regeneration
+        window.__cachedLevels = null;
+        
+        // Generate new level
+        levelData = await loadLevel(0);
+        
+        // Clear existing obstacles from scene
+        const obstacles = gameObjects.getObstacles();
+        for (const obs of obstacles) {
+            if (obs.mesh) {
+                gameObjects.getPlatformGroup().remove(obs.mesh);
+            }
+        }
+        
+        // Recreate game objects with new level
+        const oldMarble = gameObjects.getMarble();
+        const oldHole = gameObjects.getHole();
+        gameObjects.getPlatformGroup().remove(oldMarble);
+        gameObjects.getPlatformGroup().remove(oldHole);
+        
+        gameObjects.marble = gameObjects.createMarble();
+        marblePhysics.level = levelData;
+        gameObjects.hole = gameObjects.createHole();
+        gameObjects.obstacles = [];
+        gameObjects.createObstacles();
+        
+        // Reset physics
+        marblePhysics.position.set(levelData.start.x, levelData.start.y, levelData.start.z);
+        marblePhysics.velocity.set(0, 0, 0);
+        
+        // Reset game state
+        gameState.reset();
+        gameObjects.getPlatformGroup().rotation.x = 0;
+        gameObjects.getPlatformGroup().rotation.z = 0;
+        console.log(levelData);
+        // Reset animation flags
+        animate._started = false;
+        animate._finished = false;
+        animate._startTime = performance.now();
+        
+        if (ui && ui.clearMessage) ui.clearMessage();
+        
+    } catch (err) {
+        console.error('Failed to load next level:', err);
+    }
 }
 
 let lastFrameTime = Date.now();
@@ -168,13 +221,18 @@ function animate() {
             const dz = gameObjects.getMarble().position.z - goal.z;
             const goalRadius = goal.radius ?? 0.8;
             const d2 = dx*dx + dz*dz;
-            if (d2 < (goalRadius + marbleRadius)*(goalRadius + marbleRadius)) {
+            if (!animate._finished && d2 < (goalRadius + marbleRadius)*(goalRadius + marbleRadius)) {
+                animate._finished = true;
                 gameState.win();
                 gameLogic.updateUI(gameState);
                 if (ui) {
                     const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
-                    ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
+                    ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s - Loading next level...`);
                 }
+                // Load next level after a brief delay
+                setTimeout(() => {
+                    loadNextLevel();
+                }, 1500);
             }
         } else {
             // fallback to existing check
