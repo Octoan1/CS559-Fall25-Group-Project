@@ -190,8 +190,25 @@ async function startLevelTransition() {
             newPlatformGroup.add(obstacle);
         }
         
-        // Position new platform below the screen
-        newPlatformGroup.position.y = -30;
+        // Store obstacles for collision detection
+        const newObstacles = [];
+        for (const w of newLevelData.walls) {
+            const [col, row, wUnits = 1, dUnits = 1] = w;
+            const x = (col + 0.5 - cols / 2) * cellSizeX;
+            const z = (row + 0.5 - rows / 2) * cellSizeZ;
+            const width = wUnits * cellSizeX;
+            const depth = dUnits * cellSizeZ;
+            newObstacles.push({
+                x: x,
+                z: z,
+                width: width,
+                depth: depth,
+                height: 0.5
+            });
+        }
+        
+        // Position new platform off-screen to the right
+        newPlatformGroup.position.x = 60;
         
         // Store transition state
         window.__transitionState = {
@@ -200,6 +217,7 @@ async function startLevelTransition() {
             newMarble: newMarble,
             newHole: newHole,
             newLevelData: newLevelData,
+            newObstacles: newObstacles,
             startTime: performance.now(),
             marbleStartPos: gameObjects.getMarble().position.clone(),
         };
@@ -217,26 +235,25 @@ function updateLevelTransition(deltaTime) {
     const marble = gameObjects.getMarble();
     const gravity = 9.8;
     
-    // Phase 1 (0 to 0.5): Ball falls while platforms stay still
+    // Phase 1 (0 to 0.5): Ball stays still, waiting for new platform
     if (progress <= 0.5) {
-        const fallProgress = progress * 2; // 0 to 1 over first half
-        const fallDistance = 0.5 * gravity * fallProgress * fallProgress * (gameState.transitionDuration * 0.5) * (gameState.transitionDuration * 0.5);
-        marble.position.y = ts.marbleStartPos.y - fallDistance;
+        // Ball doesn't move yet
+        marble.position.copy(ts.marbleStartPos);
         // Platforms don't move yet
     }
-    // Phase 2 (0.5 to 1.0): Platforms move while ball continues falling
+    // Phase 2 (0.5 to 1.0): Platforms move, then ball falls
     else {
         const platformProgress = (progress - 0.5) * 2; // 0 to 1 over second half
         
-        // Old platform moves up
-        ts.oldPlatformGroup.position.y = platformProgress * 30;
+        // Old platform slides from center (0) to the left (-60)
+        ts.oldPlatformGroup.position.x = -platformProgress * 60;
         
-        // New platform moves up from below
-        ts.newPlatformGroup.position.y = -30 + platformProgress * 30;
+        // New platform slides from right (60) to center (0)
+        ts.newPlatformGroup.position.x = 60 - platformProgress * 60;
         
-        // Ball continues falling with same gravity
-        const totalFallTime = progress * gameState.transitionDuration;
-        const fallDistance = 0.5 * gravity * totalFallTime * totalFallTime;
+        // Ball falls after platforms start moving
+        const fallProgress = platformProgress; // 0 to 1 over second half
+        const fallDistance = 0.5 * gravity * fallProgress * fallProgress * (gameState.transitionDuration * 0.5) * (gameState.transitionDuration * 0.5);
         marble.position.y = ts.marbleStartPos.y - fallDistance;
     }
     
@@ -256,10 +273,11 @@ function completeTransition() {
     
     // Replace current gameObjects with new ones
     gameObjects.platformGroup = ts.newPlatformGroup;
+    levelData = ts.newLevelData;
     gameObjects.level = ts.newLevelData;
     gameObjects.marble = ts.newMarble;
     gameObjects.hole = ts.newHole;
-    gameObjects.obstacles = []; // obstacles already in the group
+    gameObjects.obstacles = ts.newObstacles; // Use the stored obstacles
     
     // Reset new platform position to center
     ts.newPlatformGroup.position.y = 0;
@@ -355,7 +373,7 @@ function animate() {
     }
 
     // simple timer/started detection (uses marblePhysics.velocity)
-    if (!gameState.isWon) {
+    if (!gameState.isWon && !gameState.isTransitioning) {
         // Update platform rotation
         platformController.update(deltaTime);
         platformController.applyRotationToPlatform(gameObjects.getPlatformGroup());
@@ -401,6 +419,10 @@ function animate() {
                 animate._finished = true;
                 gameState.win();
                 gameLogic.updateUI(gameState);
+                
+                // Remove marble from scene
+                gameObjects.getPlatformGroup().remove(gameObjects.getMarble());
+                
                 if (ui) {
                     const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
                     ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
