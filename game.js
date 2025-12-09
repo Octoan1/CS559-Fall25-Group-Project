@@ -220,6 +220,10 @@ window.addEventListener('keydown', (e) => {
             removeGrid();
         }
     }
+    if (e.key.toLowerCase() === 'r') {
+        // Reset the game (same as clicking the reset button)
+        resetGame();
+    }
 });
 
 // Start the game when page loads
