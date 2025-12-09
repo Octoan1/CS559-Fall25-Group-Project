@@ -20,6 +20,7 @@ class GameObjects {
         platform.receiveShadow = true;
         platform.position.y = -0.5;
         this.platformGroup.add(platform);
+        this.platformMesh = platform;
     }
 
     createMarble() {
@@ -35,6 +36,7 @@ class GameObjects {
         const start = (this.level && this.level.start) ? this.level.start : { x: -8, y: 1.0, z: -8 };
         marble.position.set(start.x, start.y, start.z);
         this.platformGroup.add(marble);
+        this.marble = marble;
         return marble;
     }
 
@@ -73,6 +75,67 @@ class GameObjects {
             depth: depth,
             height: height,
         });
+    }
+
+    setDarkMode(enabled) {
+        const on = Boolean(enabled);
+
+        // Platform: different color but keep lighting properties similar to basic
+        if (this.platformMesh) {
+            const pMat = this.platformMesh.material || new THREE.MeshStandardMaterial();
+            if (on) {
+                pMat.color = new THREE.Color(0x3a3f44); // dark gray-blue tint
+                pMat.roughness = 0.7;
+                pMat.metalness = 0.0;
+            } else {
+                pMat.color = new THREE.Color(0x8b4513);
+                pMat.roughness = 0.7;
+                pMat.metalness = 0.0;
+            }
+            pMat.needsUpdate = true;
+            this.platformMesh.material = pMat;
+        }
+
+        // Marble: neon/cool color in dark mode
+        if (this.marble) {
+            const mMat = this.marble.material || new THREE.MeshStandardMaterial();
+            if (on) {
+                mMat.color = new THREE.Color(0x00aaff);
+                mMat.emissive = new THREE.Color(0x000000);
+                mMat.emissiveIntensity = 0.0;
+                mMat.metalness = 0.6;
+                mMat.roughness = 0.4;
+            } else {
+                mMat.color = new THREE.Color(0xff6347);
+                mMat.emissive = new THREE.Color(0x000000);
+                mMat.emissiveIntensity = 0.0;
+                mMat.metalness = 0.6;
+                mMat.roughness = 0.4;
+            }
+            mMat.needsUpdate = true;
+            this.marble.material = mMat;
+        }
+
+        // Obstacles: subtle tint in dark mode
+        for (const obs of this.obstacles) {
+            if (!obs.mesh) continue;
+            const oMat = obs.mesh.material || new THREE.MeshStandardMaterial();
+            if (on) {
+                oMat.color = new THREE.Color(0x555566);
+                oMat.emissive = new THREE.Color(0x000000);
+                oMat.emissiveIntensity = 0.0;
+                oMat.metalness = 0.0;
+                oMat.roughness = 0.7;
+            } else {
+                oMat.color = new THREE.Color(0x808080);
+                oMat.emissive = new THREE.Color(0x000000);
+                oMat.emissiveIntensity = 0.0;
+                oMat.metalness = 0.0;
+                oMat.roughness = 0.8;
+            }
+            oMat.needsUpdate = true;
+            obs.mesh.material = oMat;
+        }
     }
 
     // Populate obstacles from a 2D grid array. Each grid cell that is truthy

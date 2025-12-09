@@ -28,7 +28,11 @@ function createUI() {
     const onLevelChange = (fn) => { if (!levelSelect) return; levelSelect.addEventListener('change', (e) => fn(Number(e.target.value))); };
     const setSelectedLevel = (index) => { if (!levelSelect) return; levelSelect.value = String(index); };
 
-    return { setTimer, setMessage, clearMessage, onReset, setLevelOptions, onLevelChange, setSelectedLevel };
+    const darkEl = document.getElementById('darkModeCheckbox');
+    const onDarkModeToggle = (fn) => { if (!darkEl) return; darkEl.addEventListener('change', (e) => fn(Boolean(e.target.checked))); };
+    const setDarkMode = (enabled) => { if (!darkEl) return; darkEl.checked = Boolean(enabled); };
+
+    return { setTimer, setMessage, clearMessage, onReset, setLevelOptions, onLevelChange, setSelectedLevel, onDarkModeToggle, setDarkMode };
 }
 
 window.createUI = createUI;

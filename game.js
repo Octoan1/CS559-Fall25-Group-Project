@@ -12,6 +12,8 @@ let levelData;
 let grid;
 let levels = [];
 let currentLevelIndex = 0;
+// persist the dark mode state so it survives level switches
+let darkMode = false;
 
 async function initializeGame() {
     // Initialize scene and UI first
@@ -46,6 +48,48 @@ async function initializeGame() {
     // wire reset button
     const resetMarble = () => resetGame();
     ui.onReset(resetMarble);
+    // wire dark mode checkbox
+    if (ui.onDarkModeToggle) ui.onDarkModeToggle((enabled) => {
+        darkMode = Boolean(enabled);
+        if (sceneSetup && typeof sceneSetup.setDarkMode === 'function') sceneSetup.setDarkMode(darkMode);
+        if (gameObjects && typeof gameObjects.setDarkMode === 'function') gameObjects.setDarkMode(darkMode);
+        // also update any platform being prepared during a transition
+        if (window.__transitionState) {
+            const ts = window.__transitionState;
+            try {
+                if (ts.newPlatform) {
+                    const pMat = ts.newPlatform.material || new THREE.MeshStandardMaterial();
+                    pMat.color = new THREE.Color(darkMode ? 0x3a3f44 : 0x8b4513);
+                    pMat.needsUpdate = true;
+                    ts.newPlatform.material = pMat;
+                }
+                if (ts.newMarble) {
+                    const mMat = ts.newMarble.material || new THREE.MeshStandardMaterial();
+                    mMat.color = new THREE.Color(darkMode ? 0x00aaff : 0xff6347);
+                    mMat.needsUpdate = true;
+                    ts.newMarble.material = mMat;
+                }
+                if (ts.newObstacles && Array.isArray(ts.newObstacles)) {
+                    for (const o of ts.newObstacles) {
+                        if (!o.mesh) continue;
+                        const oMat = o.mesh.material || new THREE.MeshStandardMaterial();
+                        oMat.color = new THREE.Color(darkMode ? 0x555566 : 0x808080);
+                        oMat.needsUpdate = true;
+                        o.mesh.material = oMat;
+                    }
+                }
+            } catch (e) {
+                // ignore any errors during transition update
+            }
+        }
+    });
+        // Apply current dark-mode setting after obstacles are created
+        if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
+            gameObjects.setDarkMode(darkMode);
+        }
+    // default to light mode (darkMode off)
+    if (ui.setDarkMode) ui.setDarkMode(false);
+    if (sceneSetup && typeof sceneSetup.setDarkMode === 'function') sceneSetup.setDarkMode(false);
     
     // pressing 'n' teleports the marble into the hole (debug shortcut)
     window.addEventListener('keydown', (e) => {
@@ -124,6 +168,11 @@ async function switchLevel(index) {
         gameObjects.populateFromGrid(gridArr, { cellSize: cellSize, obstacleSize: { w: 1, d: 1, h: 0.5 }, visible: true });
     }
 
+    // Apply current dark-mode setting after obstacles are created
+    if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
+        gameObjects.setDarkMode(darkMode);
+    }
+
     // Update UI selection
     if (ui.setSelectedLevel) ui.setSelectedLevel(index);
 
@@ -167,7 +216,7 @@ async function startLevelTransition() {
         // Manually create game objects on the new platform without using constructor
         // This avoids adding to scene twice
         const newPlatformGeometry = new THREE.BoxGeometry(20, 1, 20);
-        const newPlatformMaterial = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.7 });
+        const newPlatformMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x3a3f44 : 0x8b4513, roughness: 0.7 });
         const newPlatform = new THREE.Mesh(newPlatformGeometry, newPlatformMaterial);
         newPlatform.castShadow = true;
         newPlatform.receiveShadow = true;
@@ -176,7 +225,7 @@ async function startLevelTransition() {
         
         // Create marble
         const marbleGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const marbleMaterial = new THREE.MeshStandardMaterial({ color: 0xff6347, metalness: 0.6, roughness: 0.4 });
+        const marbleMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x00aaff : 0xff6347, metalness: 0.6, roughness: 0.4 });
         const newMarble = new THREE.Mesh(marbleGeometry, marbleMaterial);
         newMarble.castShadow = true;
         newMarble.receiveShadow = true;
@@ -199,23 +248,6 @@ async function startLevelTransition() {
         const cellSizeX = newLevelData.cellSizeX || (20 / cols);
         const cellSizeZ = newLevelData.cellSizeZ || (20 / rows);
         
-        for (const w of newLevelData.walls) {
-            const [col, row, wUnits = 1, dUnits = 1] = w;
-            const x = (col + 0.5 - cols / 2) * cellSizeX;
-            const z = (row + 0.5 - rows / 2) * cellSizeZ;
-            const width = wUnits * cellSizeX;
-            const depth = dUnits * cellSizeZ;
-            
-            const obstacleGeometry = new THREE.BoxGeometry(width, 0.5, depth);
-            const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
-            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-            obstacle.position.set(x, 0.25, z);
-            obstacle.castShadow = true;
-            obstacle.receiveShadow = true;
-            newPlatformGroup.add(obstacle);
-        }
-        
-        // Store obstacles for collision detection
         const newObstacles = [];
         for (const w of newLevelData.walls) {
             const [col, row, wUnits = 1, dUnits = 1] = w;
@@ -223,14 +255,16 @@ async function startLevelTransition() {
             const z = (row + 0.5 - rows / 2) * cellSizeZ;
             const width = wUnits * cellSizeX;
             const depth = dUnits * cellSizeZ;
-            newObstacles.push({
-                x: x,
-                z: z,
-                width: width,
-                depth: depth,
-                height: 0.5
-            });
+            const obstacleGeometry = new THREE.BoxGeometry(width, 0.5, depth);
+            const obstacleMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x555566 : 0x808080, roughness: 0.8 });
+            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+            obstacle.position.set(x, 0.25, z);
+            obstacle.castShadow = true;
+            obstacle.receiveShadow = true;
+            newPlatformGroup.add(obstacle);
+            newObstacles.push({ mesh: obstacle, x: x, z: z, width: width, depth: depth, height: 0.5 });
         }
+        
         
         // Position new platform off-screen to the right
         newPlatformGroup.position.x = 60;
@@ -239,6 +273,7 @@ async function startLevelTransition() {
         window.__transitionState = {
             oldPlatformGroup: gameObjects.getPlatformGroup(),
             newPlatformGroup: newPlatformGroup,
+            newPlatform: newPlatform,
             newMarble: newMarble,
             newHole: newHole,
             newLevelData: newLevelData,
@@ -303,6 +338,16 @@ function completeTransition() {
     gameObjects.marble = ts.newMarble;
     gameObjects.hole = ts.newHole;
     gameObjects.obstacles = ts.newObstacles; // Use the stored obstacles
+
+    // Ensure platform mesh reference is set so visuals can be applied
+    if (ts.newPlatform) {
+        gameObjects.platformMesh = ts.newPlatform;
+    }
+
+    // Re-apply dark mode so the new objects use the current palette/materials
+    if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
+        gameObjects.setDarkMode(darkMode);
+    }
     
     // Reset new platform position to center
     ts.newPlatformGroup.position.y = 0;
@@ -358,6 +403,10 @@ async function loadNextLevel() {
         gameObjects.hole = gameObjects.createHole();
         gameObjects.obstacles = [];
         gameObjects.createObstacles();
+        // Apply dark mode to new objects
+        if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
+            gameObjects.setDarkMode(darkMode);
+        }
         
         // Reset physics
         marblePhysics.position.set(levelData.start.x, levelData.start.y, levelData.start.z);
@@ -382,6 +431,9 @@ async function loadNextLevel() {
 }
 
 let lastFrameTime = Date.now();
+// When marble enters the hole area, require it to stay below for a few frames
+let holeBelowCounter = 0;
+const HOLE_BELOW_REQUIRED_FRAMES = 6;
 
 function animate() {
     requestAnimationFrame(animate);
@@ -439,22 +491,36 @@ function animate() {
             const d2 = dx*dx + dz*dz;
             const marbleY = gameObjects.getMarble().position.y;
             
-            // Win when ball is over hole AND has fallen below platform (y < -0.5)
-            if (!animate._finished && d2 < (goalRadius * goalRadius) && marbleY < -0.5) {
-                animate._finished = true;
-                gameState.win();
-                gameLogic.updateUI(gameState);
-                
-                // Remove marble from scene
-                gameObjects.getPlatformGroup().remove(gameObjects.getMarble());
-                
-                if (ui) {
-                    const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
-                    ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
+                // Win when ball is over hole AND has fallen below platform for several frames
+                if (!animate._finished && d2 < (goalRadius * goalRadius)) {
+                    if (marbleY < -0.5) {
+                        // increment counter when marble remains below platform while over the hole
+                        holeBelowCounter++;
+                    } else {
+                        holeBelowCounter = 0;
+                    }
+
+                    // require a small number of frames below the platform AND that the marble isn't moving strongly upward
+                    const velY = (marblePhysics && marblePhysics.velocity) ? marblePhysics.velocity.y : 0;
+                    if (holeBelowCounter >= HOLE_BELOW_REQUIRED_FRAMES && velY < 0.5) {
+                        animate._finished = true;
+                        gameState.win();
+                        gameLogic.updateUI(gameState);
+
+                        // Remove marble from scene
+                        gameObjects.getPlatformGroup().remove(gameObjects.getMarble());
+
+                        if (ui) {
+                            const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
+                            ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
+                        }
+                        // Start level transition animation
+                        startLevelTransition();
+                    }
+                } else {
+                    // reset counter when not over the hole
+                    holeBelowCounter = 0;
                 }
-                // Start level transition animation
-                startLevelTransition();
-            }
         } else {
             // fallback to existing check
             if (gameLogic.checkWinCondition(marblePhysics)) {
@@ -463,6 +529,9 @@ function animate() {
             }
         }
     }
+
+    // Update scene (animated sky, etc.)
+    if (sceneSetup && typeof sceneSetup.update === 'function') sceneSetup.update(deltaTime);
 
     // Render scene
     sceneSetup.render(sceneSetup.scene, sceneSetup.camera);

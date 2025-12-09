@@ -10,16 +10,39 @@ class InputController {
         // regardless of CapsLock/Shift, and use a blur handler to
         // clear keys if the window loses focus (prevents "stuck" keys).
         window.addEventListener('keydown', (e) => {
+            // Ignore key events when a form control has focus (input/select/textarea/contentEditable)
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+                return;
+            }
             const key = (e.key && e.key.length === 1) ? e.key.toLowerCase() : e.key;
             this.keys[key] = true;
         });
         window.addEventListener('keyup', (e) => {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+                return;
+            }
             const key = (e.key && e.key.length === 1) ? e.key.toLowerCase() : e.key;
             this.keys[key] = false;
         });
         // Clear all keys when window loses focus to avoid stuck input
         window.addEventListener('blur', () => {
             this.keys = {};
+        });
+        // Clear keys when focus moves to or from a form control to avoid stuck states
+        window.addEventListener('focusin', (e) => {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+                this.keys = {};
+            }
+        });
+        window.addEventListener('focusout', (e) => {
+            // also clear on focus out to be safe
+            const active = document.activeElement;
+            if (!active || !(active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) {
+                this.keys = {};
+            }
         });
     }
 
