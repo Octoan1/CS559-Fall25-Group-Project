@@ -5,9 +5,13 @@ class PlatformController {
         this.inputController = inputController;
         this.rotationSpeed = 0.1;
         this.maxRotation = 0.4; // ~23 degrees
+        this.enabled = true; // Control whether input is processed
     }
 
     update(deltaTime) {
+        // Skip input processing if disabled
+        if (!this.enabled) return;
+
         const keys = this.inputController.getKeys();
         let targetRotationX = this.gameState.getTargetRotation().x;
         let targetRotationZ = this.gameState.getTargetRotation().z;

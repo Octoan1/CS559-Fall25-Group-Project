@@ -6,10 +6,22 @@ class PhysicsEngine {
         this.rollingFriction = 0.995;
     }
 
-    update(marblePhysics, gameState, obstacles, marble, deltaTime) {
+    update(marblePhysics, gameState, obstacles, marble, deltaTime, holePosition = null, holeRadius = 0.8) {
         // Check if marble is on the platform
         const platformY = 0.0; // Platform top surface (platform box has height 1 and is centered at y=-0.5)
-        gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5;
+        
+        // Check if marble is over the hole
+        let isOverHole = false;
+        if (holePosition) {
+            const dx = marblePhysics.position.x - holePosition.x;
+            const dz = marblePhysics.position.z - holePosition.z;
+            const distToHole = Math.sqrt(dx * dx + dz * dz);
+            // Marble must be centered over hole (not just edge touching)
+            const marbleRadius = 0.5;
+            isOverHole = distToHole < (holeRadius - marbleRadius * 0.5);
+        }
+        
+        gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5 && !isOverHole;
 
         // Calculate gravity in world space
         let gravityX = 0;
@@ -95,11 +107,27 @@ class PhysicsEngine {
             }
         }
 
-        // Platform collision (keep on platform)
-        if (marblePhysics.position.y < platformY + 0.5) {
-            marblePhysics.position.y = platformY + 0.5;
-            if (marblePhysics.velocity.y < 0) {
-                marblePhysics.velocity.y *= -0.3; // Bounce
+        // Platform collision (keep on platform, but allow falling through hole)
+        // Platform bottom is at y = -1.0 (since platform is height 1 centered at y = -0.5)
+        const platformBottom = -1.0;
+        const platformTop = 0.0;
+        
+        if (!isOverHole) {
+            // Keep ball on top of platform
+            if (marblePhysics.position.y < platformTop + 0.5) {
+                marblePhysics.position.y = platformTop + 0.5;
+                if (marblePhysics.velocity.y < 0) {
+                    marblePhysics.velocity.y *= -0.3; // Bounce
+                }
+            }
+        } else {
+            // Ball is over hole - only keep it from falling through the platform bottom
+            if (marblePhysics.position.y > platformBottom && marblePhysics.position.y < platformTop + 0.5) {
+                // Ball is inside the hole area - let it fall naturally
+                // No collision with platform top
+            } else if (marblePhysics.position.y <= platformBottom) {
+                // Prevent clipping through platform bottom (outside the hole area)
+                // This shouldn't happen if hole detection is accurate, but safety check
             }
         }
 
