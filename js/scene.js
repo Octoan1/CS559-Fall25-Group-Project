@@ -13,8 +13,11 @@ class SceneSetup {
         this.camera.position.set(0, 16, 15);
         this.camera.lookAt(0, 0, 0);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        // Make renderer transparent so the page background gradient can show through
+        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        // clear color alpha 0 to allow CSS background to be visible where scene.background is null
+        this.renderer.setClearColor(0x000000, 0);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
         document.body.appendChild(this.renderer.domElement);
@@ -99,9 +102,11 @@ class SceneSetup {
         const on = Boolean(enabled);
         if (this._skyMesh) this._skyMesh.visible = on;
         if (on) {
+            // when shader sky is active, let it render (scene background null so sky mesh shows)
             this.scene.background = null;
         } else {
-            this.scene.background = new THREE.Color(0x87ceeb);
+            // when not in dark mode, don't set an explicit scene background so the page CSS gradient shows through
+            this.scene.background = null;
         }
     }
 
