@@ -30,8 +30,23 @@ function normalizeLevel(level) {
     const cellSizeX = 20 / cols;
     const cellSizeZ = 20 / rows;
 
-    // Ensure border walls exist in grid space
+    // Initialize walls array (may be populated by patterns below)
     level.walls = level.walls ? [...level.walls] : [];
+
+    // Support simple named patterns to avoid huge JSON lists (developer-friendly)
+    if (level.pattern === 'checkerboard') {
+        // Fill interior with a checkerboard pattern (skip borders)
+        level.walls = [];
+        for (let r = 1; r < rows - 1; r++) {
+            for (let c = 1; c < cols - 1; c++) {
+                if ((r + c) % 2 === 0) {
+                    level.walls.push([c, r]);
+                }
+            }
+        }
+    }
+
+    // Ensure border walls exist in grid space
     addBorderWalls(level);
 
     // Always interpret positions as grid coordinates, then convert to world.
@@ -166,13 +181,14 @@ function generateProceduralLevel(config) {
         if (!isReachable(grid, start, goal)) continue;
 
         // Build level from grid (only include value 3 obstacles, not borders)
+        // Note: Game expects walls as [col, row], so push [c, r].
         const walls = [];
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 if (grid[r][c] === 3) {
-                    walls.push([r, c]);
+                    walls.push([c, r]);
                 } else if ((r === 0 || r === rows - 1 || c === 0 || c === cols - 1) && grid[r][c] === 1) {
-                    walls.push([r, c]);
+                    walls.push([c, r]);
                 }
             }
         }

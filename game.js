@@ -184,10 +184,18 @@ async function switchLevel(index) {
 function resetGame() {
     console.log(levelData);
     gameState.reset();
-    marblePhysics.reset();
+    // Ensure marblePhysics knows the current level so reset uses the level start
+    if (marblePhysics) {
+        marblePhysics.level = levelData || null;
+        // reset physics state
+        marblePhysics.reset();
+    }
     // reset marble position to level start if available
     const start = (levelData && levelData.start) ? levelData.start : { x: -8, y: 1.5, z: -8 };
-    gameObjects.getMarble().position.set(start.x, start.y, start.z);
+    // Update both the visual marble mesh and the physics position so they stay in sync
+    if (gameObjects && gameObjects.getMarble) gameObjects.getMarble().position.set(start.x, start.y, start.z);
+    if (marblePhysics && marblePhysics.position) marblePhysics.position.set(start.x, start.y, start.z);
+    if (marblePhysics && marblePhysics.velocity) marblePhysics.velocity.set(0, 0, 0);
     gameObjects.getPlatformGroup().rotation.x = 0;
     gameObjects.getPlatformGroup().rotation.z = 0;
     if (ui && ui.setTimer) animate._startTime = performance.now();
