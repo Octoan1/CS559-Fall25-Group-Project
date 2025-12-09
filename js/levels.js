@@ -178,7 +178,7 @@ function generateProceduralLevel(config) {
         }
         
         return {
-            name: `Procedural-${Date.now()}`,
+            name: `Endless-${Date.now()}`,
             gridRows: rows,
             gridCols: cols,
             start: { x: start.c, y: 1.0, z: start.r },
