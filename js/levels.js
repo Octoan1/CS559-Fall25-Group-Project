@@ -185,9 +185,9 @@ function generateProceduralLevel(config) {
         const walls = [];
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
-                if (grid[r][c] === 3) {
+                if (grid[c][r] === 3) {
                     walls.push([c, r]);
-                } else if ((r === 0 || r === rows - 1 || c === 0 || c === cols - 1) && grid[r][c] === 1) {
+                } else if ((r === 0 || r === rows - 1 || c === 0 || c === cols - 1) && grid[c][r] === 1) {
                     walls.push([c, r]);
                 }
             }
