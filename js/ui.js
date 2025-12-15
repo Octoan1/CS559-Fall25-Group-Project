@@ -2,6 +2,7 @@
 function createUI() {
     const timerEl = document.getElementById('timer');
     const messageEl = document.getElementById('status');
+    const fastestEl = document.getElementById('fastestTime');
     const resetBtn = document.getElementById('resetBtn');
     const menuBtn = document.getElementById('menuBtn');
     const settingsBtn = document.getElementById('settingsBtn');
@@ -99,6 +100,31 @@ function createUI() {
         timerEl.textContent = `Time: ${s.toFixed(2)}s`;
     };
 
+    // Endless-mode fastest time helpers
+    const setFastestTime = (seconds) => {
+        if (!fastestEl) return;
+        const valueEl = fastestEl.querySelector('.fastest-value');
+        if (typeof seconds === 'number' && isFinite(seconds)) {
+            if (valueEl) valueEl.textContent = `${seconds.toFixed(2)}s`;
+            else fastestEl.textContent = `Fastest: ${seconds.toFixed(2)}s`;
+        } else {
+            if (valueEl) valueEl.textContent = '—';
+            else fastestEl.textContent = 'Fastest: —';
+        }
+    };
+    const setFastestVisible = (visible) => {
+        if (!fastestEl) return;
+        fastestEl.classList.toggle('hidden', !visible);
+    };
+    const pulseFastest = () => {
+        if (!fastestEl) return;
+        fastestEl.classList.remove('fastest-new');
+        // force reflow to restart animation if already applied
+        void fastestEl.offsetWidth;
+        fastestEl.classList.add('fastest-new');
+        setTimeout(() => fastestEl.classList.remove('fastest-new'), 1300);
+    };
+
     const setMessage = (text) => { if (messageEl) messageEl.textContent = text; };
     const clearMessage = () => { if (messageEl) messageEl.textContent = ''; };
 
@@ -140,6 +166,9 @@ function createUI() {
 
     return { 
         setTimer, 
+        setFastestTime,
+        setFastestVisible,
+        pulseFastest,
         setMessage, 
         clearMessage, 
         onReset, 

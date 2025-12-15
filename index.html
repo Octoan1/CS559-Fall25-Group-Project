@@ -128,6 +128,42 @@
             font-size: 14px;
             opacity: 0.8;
         }
+        /* Endless fastest time line */
+        #fastestTime {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+            padding: 6px 10px;
+            font-size: 14px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 10px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.25);
+        }
+        #fastestTime.hidden { display: none; }
+        #fastestTime::before {
+            content: '🏁';
+            font-size: 14px;
+            opacity: 0.95;
+        }
+        #fastestTime .fastest-label {
+            opacity: 0.9;
+        }
+        #fastestTime .fastest-value {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+        /* Pulse highlight when a new fastest is set */
+        .fastest-new {
+            animation: pulseGold 1200ms ease-out;
+        }
+        @keyframes pulseGold {
+            0%   { box-shadow: 0 0 0 rgba(255,215,0,0.0); transform: scale(0.98); }
+            20%  { box-shadow: 0 0 24px rgba(255,215,0,0.7); transform: scale(1.03); }
+            60%  { box-shadow: 0 0 10px rgba(255,215,0,0.35); transform: scale(1.00); }
+            100% { box-shadow: 0 0 0 rgba(255,215,0,0.0); transform: scale(1.00); }
+        }
         #status {
             margin-top: 10px;
         }
@@ -336,6 +372,10 @@
             <div>
                 <div id="status">Get the ball in the hole!</div>
                 <div id="timer">Time: 0.00s</div>
+                <div id="fastestTime" class="hidden">
+                    <span class="fastest-label">Fastest</span>
+                    <span class="fastest-value">—</span>
+                </div>
             </div>
             <button id="settingsBtn" aria-label="Settings" title="Settings"></button>
         </div>

@@ -29,15 +29,27 @@ function setDefaultStatusMessage() {
 let raceTimeRemaining = 0;
 let raceScore = 0;
 let raceHighScore = 0;
+let raceLevelStartTime = 0; // Track when the current level started for bonus calculation
 // Pause state (pauses timer when settings open)
 let isPaused = false;
 let pauseStartedTime = 0; // Track the exact time pause began
 
-// Flash the +2 bonus overlay briefly
-function showBonusOverlay() {
+// Endless mode best time (fastest level clear)
+let endlessBestTime = Infinity;
+
+// Flash the bonus overlay briefly
+function showBonusOverlay(bonusAmount = 5) {
     const overlay = document.getElementById('bonusOverlay');
     if (!overlay) return;
     const content = overlay.querySelector('.bonus-content');
+    const text = overlay.querySelector('.bonus-text');
+    if (text) {
+        if (bonusAmount === 10) {
+            text.textContent = '+10 BONUS';
+        } else {
+            text.textContent = `+${bonusAmount}`;
+        }
+    }
     overlay.classList.remove('hidden');
     if (content) content.style.animation = 'flashBonus 1500ms ease-out';
     setTimeout(() => {
@@ -59,6 +71,12 @@ async function initializeGame() {
         const saved = Number(localStorage.getItem('raceHighScore') || 0);
         raceHighScore = isNaN(saved) ? 0 : saved;
     } catch (e) { raceHighScore = 0; }
+
+    // Load persisted endless fastest time
+    try {
+        const eb = Number(localStorage.getItem('endlessBestTime'));
+        endlessBestTime = isFinite(eb) && eb > 0 ? eb : Infinity;
+    } catch (e) { endlessBestTime = Infinity; }
 
     // Load all levels (procedural or static)
     try {
@@ -82,6 +100,9 @@ async function initializeGame() {
     // Handle endless mode button
     ui.onEndlessMode(async () => {
         gameMode = 'endless';
+        // Show fastest line for endless mode
+        if (ui.setFastestVisible) ui.setFastestVisible(true);
+        if (ui.setFastestTime) ui.setFastestTime(isFinite(endlessBestTime) ? endlessBestTime : null);
         // Generate a new procedural level for endless mode
         const rawLevel = generateProceduralLevel({
             gridRows: 20,
@@ -134,6 +155,8 @@ async function initializeGame() {
     // Helper to start (or restart) race mode
     function initRaceMode() {
         gameMode = 'race';
+        // Hide fastest line outside endless mode
+        if (ui.setFastestVisible) ui.setFastestVisible(false);
         const rawLevel = generateProceduralLevel({
             gridRows: 20,
             gridCols: 20,
@@ -162,6 +185,7 @@ async function initializeGame() {
         animate._started = true;
         animate._finished = false;
         animate._startTime = performance.now();
+        raceLevelStartTime = performance.now();
         platformController.enabled = true;
         if (ui.setTimer) ui.setTimer(raceTimeRemaining);
         setDefaultStatusMessage();
@@ -172,6 +196,8 @@ async function initializeGame() {
     // Handle level mode selection
     ui.onLevelMode(async (levelIndex) => {
         gameMode = 'level';
+        // Hide fastest line outside endless mode
+        if (ui.setFastestVisible) ui.setFastestVisible(false);
         currentLevelIndex = levelIndex;
         await switchLevel(currentLevelIndex);
         platformController.enabled = true;
@@ -180,6 +206,8 @@ async function initializeGame() {
     // Handle menu button
     ui.onMenu(() => {
         platformController.enabled = false;
+        // Hide fastest line outside endless mode
+        if (ui.setFastestVisible) ui.setFastestVisible(false);
         gameState.reset();
         try {
             if (gameObjects && gameObjects.getPlatformGroup && sceneSetup && sceneSetup.scene) {
@@ -582,6 +610,11 @@ function completeTransition() {
     animate._finished = false;
     animate._startTime = performance.now();
     
+    // Reset race level timer for next level (only in race mode)
+    if (gameMode === 'race') {
+        raceLevelStartTime = performance.now();
+    }
+    
     setDefaultStatusMessage();
     
     // Clear transition state
@@ -743,13 +776,27 @@ function animate() {
                         
                         // Handle level completion based on game mode
                         if (gameMode === 'endless') {
-                            // In endless mode, transition to next level
+                            // In endless mode, record fastest time and transition to next level
+                            const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
+                            if (!isFinite(endlessBestTime) || elapsed < endlessBestTime) {
+                                endlessBestTime = elapsed;
+                                try { localStorage.setItem('endlessBestTime', String(endlessBestTime)); } catch (e) {}
+                                if (ui.setFastestTime) ui.setFastestTime(endlessBestTime);
+                                if (ui.pulseFastest) ui.pulseFastest();
+                            }
                             startLevelTransition();
                         } else if (gameMode === 'race') {
-                            // In race mode, add time and continue
-                            raceTimeRemaining += 5.0;
+                            // In race mode, check if level was beaten in 7 seconds or less
+                            const levelTime = (performance.now() - raceLevelStartTime) / 1000;
+                            let bonusTime = 5.0;
+                            let bonusAmount = 5;
+                            if (levelTime <= 7.0) {
+                                bonusTime = 10.0;
+                                bonusAmount = 10;
+                            }
+                            raceTimeRemaining += bonusTime;
                             raceScore += 1;
-                            showBonusOverlay();
+                            showBonusOverlay(bonusAmount);
                             startLevelTransition();
                         } else {
                             // In level mode, return to level select after a delay
