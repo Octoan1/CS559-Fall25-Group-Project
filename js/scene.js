@@ -28,7 +28,7 @@ class SceneSetup {
     }
 
     _setupSkySphere() {
-        // Shader-based animated sky inside a large sphere
+        // Dark mode shader-based animated sky inside a large sphere
         this.skyUniforms = {
             time: { value: 0.0 },
             resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
@@ -42,7 +42,7 @@ class SceneSetup {
             }
         `;
 
-        const fragment = `
+        const fragmentDark = `
             uniform float time;
             varying vec2 vUv;
 
@@ -77,37 +77,85 @@ class SceneSetup {
             }
         `;
 
-        const mat = new THREE.ShaderMaterial({
+        const matDark = new THREE.ShaderMaterial({
             uniforms: this.skyUniforms,
             vertexShader: vertex,
-            fragmentShader: fragment,
+            fragmentShader: fragmentDark,
             side: THREE.BackSide,
             depthWrite: false
         });
 
         const geo = new THREE.SphereGeometry(500, 32, 32);
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.frustumCulled = false;
-        mesh.renderOrder = -1;
-        this.scene.add(mesh);
-        this._skyMesh = mesh;
+        const meshDark = new THREE.Mesh(geo, matDark);
+        meshDark.frustumCulled = false;
+        meshDark.renderOrder = -1;
+        this.scene.add(meshDark);
+        this._skyMesh = meshDark;
+
+        // Light mode shader-based animated sky
+        this.lightSkyUniforms = {
+            time: { value: 0.0 },
+            resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+        };
+
+        const fragmentLight = `
+            uniform float time;
+            varying vec2 vUv;
+
+            void main() {
+                vec2 uv = vUv;
+                float t = time * 0.35;
+
+                // moving waves similar to dark mode
+                float w1 = sin((uv.x * 6.0) + t) * 0.5 + 0.5;
+                float w2 = sin((uv.y * 8.0) - t * 0.7) * 0.5 + 0.5;
+                float mixv = smoothstep(0.1, 0.9, (w1 * 0.6 + w2 * 0.4));
+
+                // Light blue gradient colors
+                vec3 colA = vec3(0.596, 0.471, 0.714); // #cbdee9
+                vec3 colB = vec3(0.275, 0.647, 0.749); // #46a5bf
+                vec3 colC = vec3(0.5, 0.7, 0.85); // softer light blue accent
+
+                vec3 color = mix(colA, colB, mixv);
+                color = mix(color, colC, 0.1 * sin(t + uv.x*3.0));
+
+                // subtle radial vignette
+                float dx = uv.x - 0.5;
+                float dy = uv.y - 0.5;
+                float dist = sqrt(dx*dx + dy*dy);
+                color *= smoothstep(1.0, 0.4, dist);
+
+                gl_FragColor = vec4(color, 1.0);
+            }
+        `;
+
+        const matLight = new THREE.ShaderMaterial({
+            uniforms: this.lightSkyUniforms,
+            vertexShader: vertex,
+            fragmentShader: fragmentLight,
+            side: THREE.BackSide,
+            depthWrite: false
+        });
+
+        const meshLight = new THREE.Mesh(geo.clone(), matLight);
+        meshLight.frustumCulled = false;
+        meshLight.renderOrder = -1;
+        this.scene.add(meshLight);
+        this._lightSkyMesh = meshLight;
     }
 
     update(delta) {
         if (this.skyUniforms) this.skyUniforms.time.value += delta;
+        if (this.lightSkyUniforms) this.lightSkyUniforms.time.value += delta;
     }
 
     setDarkMode(enabled) {
-        // enabled = true -> show shader sky (dark mode); false -> basic background color
+        // enabled = true -> show dark shader sky; false -> show light shader sky
         const on = Boolean(enabled);
         if (this._skyMesh) this._skyMesh.visible = on;
-        if (on) {
-            // when shader sky is active, let it render (scene background null so sky mesh shows)
-            this.scene.background = null;
-        } else {
-            // when not in dark mode, don't set an explicit scene background so the page CSS gradient shows through
-            this.scene.background = null;
-        }
+        if (this._lightSkyMesh) this._lightSkyMesh.visible = !on;
+        // Always keep scene background null so shader skies show through
+        this.scene.background = null;
     }
 
     setupLighting() {

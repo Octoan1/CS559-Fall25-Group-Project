@@ -1,15 +1,211 @@
 // Game objects - platform, marble, obstacles, and hole
 class GameObjects {
-    constructor(scene, level = null) {
+    // Static properties to cache shaders
+    static marbleVertexShader = null;
+    static marbleFragmentShader = null;
+    static shadersLoaded = false;
+    static stumpVertexShader = null;
+    static stumpFragmentShader = null;
+    static stumpShadersLoaded = false;
+
+    // Seeded random number generator for deterministic obstacle generation
+    static seededRandom(seed) {
+        const x = Math.sin(seed) * 10000;
+        return x - Math.floor(x);
+    }
+
+    // Build an obstacle mesh that can look like a tree stump in light mode
+    // and a darker block in dark mode. Returns the mesh with visualHeight
+    // stored in userData so callers can place it flush on the platform.
+    static createObstacleMesh({ width, depth, height = 0.5, darkMode = false, woodTexture = null, stoneTexture = null, seed = null }) {
+        const useStump = !darkMode;
+
+        if (useStump) {
+            // Use seeded random if seed provided, otherwise use Math.random()
+            const rand = (offset = 0) => seed !== null ? GameObjects.seededRandom(seed + offset) : Math.random();
+            
+            const minRadius = Math.min(width, depth) * 0.3;
+            const maxRadius = Math.min(width, depth) * 0.55;
+            const bottomRadius = THREE.MathUtils.clamp(minRadius * (1.1 + rand(1) * 0.6), 0.2, maxRadius);
+            const topRadius = bottomRadius * (0.7 + rand(2) * 0.25);
+            const stumpHeight = height * (0.9 + rand(3) * 0.5);
+
+            // Closed cylinder with higher segments; keep caps flat to avoid holes
+            const geometry = new THREE.CylinderGeometry(topRadius, bottomRadius, stumpHeight, 24, 1, false);
+            geometry.computeVertexNormals();
+            const sideMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(0x8b5a2b),
+                roughness: 0.9,
+                metalness: 0.0,
+                map: woodTexture || null,
+                side: THREE.FrontSide,
+            });
+
+            // Generate procedural ring texture for the top cap
+            const ringCount = Math.floor(6 + rand(4) * 6);
+            const ringTexture = GameObjects.createRingTexture(topRadius, ringCount);
+
+            const topMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color(0xd4b08c),
+                roughness: 0.7,
+                metalness: 0.0,
+                side: THREE.FrontSide,
+                map: ringTexture,
+            });
+
+            const mesh = new THREE.Mesh(geometry, [sideMaterial, topMaterial, topMaterial]);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.userData.visualHeight = stumpHeight;
+            return mesh;
+        }
+
+        // Dark mode: create a rock-like icosahedron shape
+        const baseRadius = Math.min(width, depth) * 0.4;
+        const geometry = new THREE.IcosahedronGeometry(baseRadius, 2);
+        // Jitter vertices slightly to make rocks more irregular
+        const pos = geometry.attributes.position;
+        const v = new THREE.Vector3();
+        const rand = (offset = 0) => seed !== null ? GameObjects.seededRandom(seed + offset) : Math.random();
+        for (let i = 0; i < pos.count; i++) {
+            v.fromBufferAttribute(pos, i);
+            const jitter = 0.85 + rand(100 + i) * 0.3;
+            v.multiplyScalar(jitter);
+            pos.setXYZ(i, v.x, v.y, v.z);
+        }
+        geometry.computeVertexNormals();
+
+        const material = new THREE.MeshStandardMaterial({
+            color: new THREE.Color(0x777788),
+            roughness: 0.85,
+            metalness: 0.0,
+            map: stoneTexture || null,
+        });
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        mesh.userData.visualHeight = height;
+        return mesh;
+    }
+
+    // Update obstacle materials to match the current theme (handles single or multi-material meshes)
+    static applyObstacleMaterial(mesh, darkMode, woodTexture = null, stoneTexture = null) {
+        if (!mesh) return;
+        const materialsArray = Array.isArray(mesh.material) ? mesh.material : [mesh.material || new THREE.MeshStandardMaterial()];
+
+        for (let i = 0; i < materialsArray.length; i++) {
+            const mat = materialsArray[i] || new THREE.MeshStandardMaterial();
+            const isSide = i === 0; // CylinderGeometry groups: [sides, top, bottom]
+
+            if (darkMode) {
+                mat.color = new THREE.Color(isSide ? 0x555566 : 0x666677);
+                mat.map = null;
+                mat.roughness = 0.8;
+                mat.metalness = 0.0;
+                if (stoneTexture && !Array.isArray(mesh.material)) {
+                    mat.map = stoneTexture;
+                }
+            } else {
+                mat.color = new THREE.Color(isSide ? 0x8b5a2b : 0xd4b08c);
+                mat.map = isSide && woodTexture ? woodTexture : mat.map; // Keep ring texture on top caps
+                mat.roughness = isSide ? 0.9 : 0.7;
+                mat.metalness = 0.0;
+            }
+
+            mat.needsUpdate = true;
+            materialsArray[i] = mat;
+        }
+
+        mesh.material = Array.isArray(mesh.material) ? materialsArray : materialsArray[0];
+    }
+
+    // Create a procedural ring texture for stump tops
+    static createRingTexture(radius, ringCount) {
+        const size = 256;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+
+        // Base color
+        ctx.fillStyle = '#d4b08c';
+        ctx.fillRect(0, 0, size, size);
+
+        // Draw concentric rings from center outward
+        const center = size / 2;
+        const maxPixelRadius = size / 2;
+        const ringWidth = maxPixelRadius / ringCount;
+
+        for (let i = 1; i <= ringCount; i++) {
+            const r = i * ringWidth;
+            ctx.strokeStyle = i % 2 === 0 ? '#b8925a' : '#d4b08c'; // alternate darker/lighter
+            ctx.lineWidth = ringWidth * 0.7;
+            ctx.beginPath();
+            ctx.arc(center, center, r, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.magFilter = THREE.LinearFilter;
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        return texture;
+    }
+    
+    constructor(scene, level = null, darkMode = false) {
         this.platformGroup = new THREE.Group();
         scene.add(this.platformGroup);
         this.level = level;
+        this.darkMode = darkMode;
 
         this.createPlatform();
         this.marble = this.createMarble();
         this.hole = this.createHole();
         this.obstacles = [];
         this.createObstacles();
+    }
+    
+    // Static method to preload shaders
+    static preloadShaders() {
+        return new Promise((resolve) => {
+            if (GameObjects.shadersLoaded && GameObjects.stumpShadersLoaded) {
+                resolve();
+                return;
+            }
+            
+            const loader = new THREE.FileLoader();
+
+            const maybeResolve = () => {
+                if (GameObjects.shadersLoaded && GameObjects.stumpShadersLoaded) {
+                    resolve();
+                }
+            };
+
+            loader.load('shaders/ball.vs', (vs) => {
+                GameObjects.marbleVertexShader = vs;
+                GameObjects.shadersLoaded = Boolean(GameObjects.marbleFragmentShader);
+                maybeResolve();
+            });
+            
+            loader.load('shaders/ball.fs', (fs) => {
+                GameObjects.marbleFragmentShader = fs;
+                GameObjects.shadersLoaded = Boolean(GameObjects.marbleVertexShader);
+                maybeResolve();
+            });
+
+            loader.load('shaders/stump.vs', (vs) => {
+                GameObjects.stumpVertexShader = vs;
+                GameObjects.stumpShadersLoaded = Boolean(GameObjects.stumpFragmentShader);
+                maybeResolve();
+            });
+            
+            loader.load('shaders/stump.fs', (fs) => {
+                GameObjects.stumpFragmentShader = fs;
+                GameObjects.stumpShadersLoaded = Boolean(GameObjects.stumpVertexShader);
+                maybeResolve();
+            });
+        });
     }
 
     createPlatform() {
@@ -21,15 +217,71 @@ class GameObjects {
         platform.position.y = -0.5;
         this.platformGroup.add(platform);
         this.platformMesh = platform;
+        
+        // Load wood texture for light mode
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load('../textures/wood.jpg', (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            this.woodTexture = texture;
+            // Apply texture if not in dark mode
+            const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+            if (!darkModeCheckbox || !darkModeCheckbox.checked) {
+                if (this.platformMesh && this.platformMesh.material) {
+                    this.platformMesh.material.map = texture;
+                    this.platformMesh.material.needsUpdate = true;
+                }
+                if (this.obstacles && this.obstacles.length) {
+                    for (const obs of this.obstacles) {
+                        GameObjects.applyObstacleMaterial(obs.mesh, false, texture, this.stoneTexture);
+                    }
+                }
+            }
+        });
+        
+        // Load stone texture for dark mode
+        textureLoader.load('../textures/stone.jpg', (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(4, 4);
+            this.stoneTexture = texture;
+            // Apply texture if in dark mode
+            const darkModeCheckbox = document.getElementById('darkModeCheckbox');
+            if (darkModeCheckbox && darkModeCheckbox.checked) {
+                if (this.platformMesh && this.platformMesh.material) {
+                    this.platformMesh.material.map = texture;
+                    this.platformMesh.material.needsUpdate = true;
+                }
+            }
+        });
     }
 
     createMarble() {
         const marbleGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const marbleMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xff6347, 
-            metalness: 0.6, 
-            roughness: 0.4 
-        });
+        
+        // Marble shader uniforms
+        const marbleUniforms = {
+            time: { value: 0.0 },
+            baseColor: { value: new THREE.Color(0xff6347) }
+        };
+        
+        this.marbleUniforms = marbleUniforms;
+        
+        // Use cached shaders if available
+        let marbleMaterial;
+        if (GameObjects.shadersLoaded && GameObjects.marbleVertexShader && GameObjects.marbleFragmentShader) {
+            marbleMaterial = new THREE.ShaderMaterial({
+                uniforms: marbleUniforms,
+                vertexShader: GameObjects.marbleVertexShader,
+                fragmentShader: GameObjects.marbleFragmentShader,
+                lights: false
+            });
+        } else {
+            // Fallback to standard material if shaders not loaded
+            marbleMaterial = new THREE.MeshStandardMaterial({ color: 0xff6347 });
+        }
+        
         const marble = new THREE.Mesh(marbleGeometry, marbleMaterial);
         marble.castShadow = true;
         marble.receiveShadow = true;
@@ -58,12 +310,19 @@ class GameObjects {
     createObstacle(x, z, width, depth, height = 0.3, visible = true) {
         let mesh = null;
         if (visible) {
-            const geometry = new THREE.BoxGeometry(width, height, depth);
-            const material = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
-            mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x, height / 2, z);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            // Create a deterministic seed based on position
+            const seed = Math.floor(x * 73856093) ^ Math.floor(z * 19349663);
+            mesh = GameObjects.createObstacleMesh({
+                width,
+                depth,
+                height,
+                darkMode: this.darkMode,
+                woodTexture: this.woodTexture,
+                stoneTexture: this.stoneTexture,
+                seed: seed,
+            });
+            const visualHeight = mesh.userData.visualHeight ?? height;
+            mesh.position.set(x, visualHeight / 2, z);
             this.platformGroup.add(mesh);
         }
 
@@ -73,12 +332,13 @@ class GameObjects {
             z: z,
             width: width,
             depth: depth,
-            height: height,
+            height: mesh && mesh.userData.visualHeight ? mesh.userData.visualHeight : height,
         });
     }
 
     setDarkMode(enabled) {
         const on = Boolean(enabled);
+        this.darkMode = on;
 
         // Platform: different color but keep lighting properties similar to basic
         if (this.platformMesh) {
@@ -87,54 +347,95 @@ class GameObjects {
                 pMat.color = new THREE.Color(0x3a3f44); // dark gray-blue tint
                 pMat.roughness = 0.7;
                 pMat.metalness = 0.0;
+                // Apply stone texture in dark mode if available
+                if (this.stoneTexture) {
+                    pMat.map = this.stoneTexture;
+                }
             } else {
                 pMat.color = new THREE.Color(0x8b4513);
                 pMat.roughness = 0.7;
                 pMat.metalness = 0.0;
+                // Apply wood texture in light mode if available
+                if (this.woodTexture) {
+                    pMat.map = this.woodTexture;
+                }
             }
             pMat.needsUpdate = true;
             this.platformMesh.material = pMat;
         }
 
-        // Marble: neon/cool color in dark mode
-        if (this.marble) {
-            const mMat = this.marble.material || new THREE.MeshStandardMaterial();
+        // Marble: update base color in shader uniform
+        if (this.marble && this.marbleUniforms) {
             if (on) {
-                mMat.color = new THREE.Color(0x00aaff);
-                mMat.emissive = new THREE.Color(0x000000);
-                mMat.emissiveIntensity = 0.0;
-                mMat.metalness = 0.6;
-                mMat.roughness = 0.4;
+                this.marbleUniforms.baseColor.value.setHex(0x00aaff);
             } else {
-                mMat.color = new THREE.Color(0xff6347);
-                mMat.emissive = new THREE.Color(0x000000);
-                mMat.emissiveIntensity = 0.0;
-                mMat.metalness = 0.6;
-                mMat.roughness = 0.4;
+                this.marbleUniforms.baseColor.value.setHex(0xff6347);
             }
-            mMat.needsUpdate = true;
-            this.marble.material = mMat;
         }
 
-        // Obstacles: subtle tint in dark mode
+        // Obstacles: update color and swap shape if needed
         for (const obs of this.obstacles) {
             if (!obs.mesh) continue;
-            const oMat = obs.mesh.material || new THREE.MeshStandardMaterial();
-            if (on) {
-                oMat.color = new THREE.Color(0x555566);
-                oMat.emissive = new THREE.Color(0x000000);
-                oMat.emissiveIntensity = 0.0;
-                oMat.metalness = 0.0;
-                oMat.roughness = 0.7;
-            } else {
-                oMat.color = new THREE.Color(0x808080);
-                oMat.emissive = new THREE.Color(0x000000);
-                oMat.emissiveIntensity = 0.0;
-                oMat.metalness = 0.0;
-                oMat.roughness = 0.8;
+            
+            // Dispose old materials
+            if (Array.isArray(obs.mesh.material)) {
+                obs.mesh.material.forEach(mat => mat.dispose());
+            } else if (obs.mesh.material) {
+                obs.mesh.material.dispose();
             }
-            oMat.needsUpdate = true;
-            obs.mesh.material = oMat;
+            
+            // Swap shape: rock for dark mode, stump for light mode
+            if (on) {
+                // Replace with rock shape (icosahedron) with random size variation
+                const baseRadius = Math.min(obs.width, obs.depth) * (0.35 + Math.random() * 0.15);
+                const rockGeometry = new THREE.IcosahedronGeometry(baseRadius, 2);
+                const pos = rockGeometry.attributes.position;
+                const v = new THREE.Vector3();
+                for (let i = 0; i < pos.count; i++) {
+                    v.fromBufferAttribute(pos, i);
+                    const jitter = 0.85 + Math.random() * 0.3;
+                    v.multiplyScalar(jitter);
+                    pos.setXYZ(i, v.x, v.y, v.z);
+                }
+                rockGeometry.computeVertexNormals();
+                obs.mesh.geometry.dispose();
+                obs.mesh.geometry = rockGeometry;
+                obs.mesh.scale.set(1, 1, 1);
+                
+                // Set rock material directly
+                const rockMaterial = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(0x777788),
+                    roughness: 0.85,
+                    metalness: 0.0,
+                    map: this.stoneTexture || null,
+                });
+                obs.mesh.material = rockMaterial;
+            } else {
+                // Replace with stump shape (cylinder)
+                const bottomRadius = Math.min(obs.width, obs.depth) * 0.55;
+                const topRadius = bottomRadius * (0.7 + Math.random() * 0.25);
+                const stumpGeometry = new THREE.CylinderGeometry(topRadius, bottomRadius, obs.height, 24, 1, false);
+                stumpGeometry.computeVertexNormals();
+                obs.mesh.geometry.dispose();
+                obs.mesh.geometry = stumpGeometry;
+                obs.mesh.scale.set(1, 1, 1);
+                
+                // Set stump materials directly (array for cylinder sides/top/bottom)
+                const sideMaterial = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(0x8b5a2b),
+                    roughness: 0.9,
+                    metalness: 0.0,
+                    map: this.woodTexture || null,
+                });
+                const ringTexture = GameObjects.createRingTexture(topRadius, 6 + Math.floor(Math.random() * 7));
+                const topMaterial = new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(0xd4b08c),
+                    roughness: 0.7,
+                    metalness: 0.0,
+                    map: ringTexture,
+                });
+                obs.mesh.material = [sideMaterial, topMaterial, topMaterial];
+            }
         }
     }
 

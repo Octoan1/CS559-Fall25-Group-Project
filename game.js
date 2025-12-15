@@ -16,6 +16,9 @@ let currentLevelIndex = 0;
 let darkMode = false;
 
 async function initializeGame() {
+    // Preload shaders first
+    await GameObjects.preloadShaders();
+    
     // Initialize scene and UI first
     sceneSetup = new SceneSetup();
     ui = createUI();
@@ -72,10 +75,7 @@ async function initializeGame() {
                 if (ts.newObstacles && Array.isArray(ts.newObstacles)) {
                     for (const o of ts.newObstacles) {
                         if (!o.mesh) continue;
-                        const oMat = o.mesh.material || new THREE.MeshStandardMaterial();
-                        oMat.color = new THREE.Color(darkMode ? 0x555566 : 0x808080);
-                        oMat.needsUpdate = true;
-                        o.mesh.material = oMat;
+                        GameObjects.applyObstacleMaterial(o.mesh, darkMode, gameObjects ? gameObjects.woodTexture : null, gameObjects ? gameObjects.stoneTexture : null);
                     }
                 }
             } catch (e) {
@@ -139,7 +139,7 @@ async function switchLevel(index) {
     }
 
     // Create new game objects for this level
-    gameObjects = new GameObjects(sceneSetup.scene, levelData);
+    gameObjects = new GameObjects(sceneSetup.scene, levelData, darkMode);
     gameLogic = new GameLogic(levelData);
 
     // Reset game state and marble physics to level start
@@ -166,11 +166,6 @@ async function switchLevel(index) {
         // cellSize chosen to match GameObjects.createObstacles mapping (20 / cols etc.)
         const cellSize = 1; // matches populateFromGrid mapping used elsewhere
         gameObjects.populateFromGrid(gridArr, { cellSize: cellSize, obstacleSize: { w: 1, d: 1, h: 0.5 }, visible: true });
-    }
-
-    // Apply current dark-mode setting after obstacles are created
-    if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
-        gameObjects.setDarkMode(darkMode);
     }
 
     // Update UI selection
@@ -225,15 +220,39 @@ async function startLevelTransition() {
         // This avoids adding to scene twice
         const newPlatformGeometry = new THREE.BoxGeometry(20, 1, 20);
         const newPlatformMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x3a3f44 : 0x8b4513, roughness: 0.7 });
+        
+        // Apply appropriate texture based on dark mode
+        if (darkMode && gameObjects.stoneTexture) {
+            newPlatformMaterial.map = gameObjects.stoneTexture;
+        } else if (!darkMode && gameObjects.woodTexture) {
+            newPlatformMaterial.map = gameObjects.woodTexture;
+        }
+        
         const newPlatform = new THREE.Mesh(newPlatformGeometry, newPlatformMaterial);
         newPlatform.castShadow = true;
         newPlatform.receiveShadow = true;
         newPlatform.position.y = -0.5;
         newPlatformGroup.add(newPlatform);
         
-        // Create marble
+        // Create marble with shader material
         const marbleGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-        const marbleMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x00aaff : 0xff6347, metalness: 0.6, roughness: 0.4 });
+        const newMarbleUniforms = {
+            time: { value: 0.0 },
+            baseColor: { value: new THREE.Color(darkMode ? 0x00aaff : 0xff6347) }
+        };
+        
+        let marbleMaterial;
+        if (GameObjects.shadersLoaded && GameObjects.marbleVertexShader && GameObjects.marbleFragmentShader) {
+            marbleMaterial = new THREE.ShaderMaterial({
+                uniforms: newMarbleUniforms,
+                vertexShader: GameObjects.marbleVertexShader,
+                fragmentShader: GameObjects.marbleFragmentShader,
+                lights: false
+            });
+        } else {
+            marbleMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x00aaff : 0xff6347, metalness: 0.6, roughness: 0.4 });
+        }
+        
         const newMarble = new THREE.Mesh(marbleGeometry, marbleMaterial);
         newMarble.castShadow = true;
         newMarble.receiveShadow = true;
@@ -263,14 +282,21 @@ async function startLevelTransition() {
             const z = (row + 0.5 - rows / 2) * cellSizeZ;
             const width = wUnits * cellSizeX;
             const depth = dUnits * cellSizeZ;
-            const obstacleGeometry = new THREE.BoxGeometry(width, 0.5, depth);
-            const obstacleMaterial = new THREE.MeshStandardMaterial({ color: darkMode ? 0x555566 : 0x808080, roughness: 0.8 });
-            const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-            obstacle.position.set(x, 0.25, z);
-            obstacle.castShadow = true;
-            obstacle.receiveShadow = true;
+            // Use a deterministic seed based on position to ensure consistent stump sizes
+            const seed = col * 73856093 ^ row * 19349663;
+            const obstacle = GameObjects.createObstacleMesh({
+                width,
+                depth,
+                height: 0.5,
+                darkMode,
+                woodTexture: gameObjects ? gameObjects.woodTexture : null,
+                stoneTexture: gameObjects ? gameObjects.stoneTexture : null,
+                seed: seed,
+            });
+            const visualHeight = obstacle.userData.visualHeight ?? 0.5;
+            obstacle.position.set(x, visualHeight / 2, z);
             newPlatformGroup.add(obstacle);
-            newObstacles.push({ mesh: obstacle, x: x, z: z, width: width, depth: depth, height: 0.5 });
+            newObstacles.push({ mesh: obstacle, x: x, z: z, width: width, depth: depth, height: visualHeight });
         }
         
         
@@ -283,6 +309,7 @@ async function startLevelTransition() {
             newPlatformGroup: newPlatformGroup,
             newPlatform: newPlatform,
             newMarble: newMarble,
+            newMarbleUniforms: newMarbleUniforms,
             newHole: newHole,
             newLevelData: newLevelData,
             newObstacles: newObstacles,
@@ -343,7 +370,11 @@ function completeTransition() {
     gameObjects.platformGroup = ts.newPlatformGroup;
     levelData = ts.newLevelData;
     gameObjects.level = ts.newLevelData;
+    
+    // Use the marble that already has the shader material
     gameObjects.marble = ts.newMarble;
+    gameObjects.marbleUniforms = ts.newMarbleUniforms; // Store the uniforms for dark mode switching
+    
     gameObjects.hole = ts.newHole;
     gameObjects.obstacles = ts.newObstacles; // Use the stored obstacles
 
@@ -352,11 +383,6 @@ function completeTransition() {
         gameObjects.platformMesh = ts.newPlatform;
     }
 
-    // Re-apply dark mode so the new objects use the current palette/materials
-    if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
-        gameObjects.setDarkMode(darkMode);
-    }
-    
     // Reset new platform position to center
     ts.newPlatformGroup.position.y = 0;
     

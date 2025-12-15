@@ -9,6 +9,7 @@ class PhysicsEngine {
     update(marblePhysics, gameState, obstacles, marble, deltaTime, holePosition = null, holeRadius = 0.8) {
         // Check if marble is on the platform
         const platformY = 0.0; // Platform top surface (platform box has height 1 and is centered at y=-0.5)
+        const marbleRadius = 0.5; // Marble radius used throughout collision calculations
         
         // Check if marble is over the hole
         let isOverHole = false;
@@ -17,7 +18,6 @@ class PhysicsEngine {
             const dz = marblePhysics.position.z - holePosition.z;
             const distToHole = Math.sqrt(dx * dx + dz * dz);
             // Marble must be centered over hole (not just edge touching)
-            const marbleRadius = 0.5;
             isOverHole = distToHole < (holeRadius - marbleRadius * 0.5);
         }
         
@@ -54,7 +54,6 @@ class PhysicsEngine {
 
         // Obstacle collision (simple sphere vs AABB)
         // Marble is treated as a sphere with radius 0.5 (matches geometry)
-        const marbleRadius = 0.5;
         if (Array.isArray(obstacles)) {
             for (const obs of obstacles) {
                 if (!obs) continue;
@@ -132,6 +131,30 @@ class PhysicsEngine {
         }
 
         marble.position.copy(marblePhysics.position);
+        
+        // Calculate and apply rolling rotation
+        // The ball rotates around an axis perpendicular to its velocity
+        const speed = Math.sqrt(
+            marblePhysics.velocity.x * marblePhysics.velocity.x + 
+            marblePhysics.velocity.z * marblePhysics.velocity.z
+        );
+        
+        if (speed > 0.001) {
+            // Calculate rotation axis (perpendicular to velocity in XZ plane)
+            // Rotation axis is 90 degrees from velocity direction
+            const axisX = -marblePhysics.velocity.z / speed;
+            const axisZ = marblePhysics.velocity.x / speed;
+            
+            // Calculate rotation angle based on distance traveled
+            // angle = distance / radius
+            const rotationAngle = -(speed * deltaTime) / marbleRadius;
+            
+            // Create rotation axis
+            const axis = new THREE.Vector3(axisX, 0, axisZ).normalize();
+            
+            // Apply rotation
+            marble.rotateOnWorldAxis(axis, rotationAngle);
+        }
     }
 
     // No boundary or obstacle collision
