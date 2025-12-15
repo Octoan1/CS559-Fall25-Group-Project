@@ -24,14 +24,18 @@ function createUI() {
     let onRaceModeCallback = null;
     let onLevelSelectCallback = null;
     let onMenuCallback = null;
+    let onSettingsOpenCallback = null;
+    let onSettingsCloseCallback = null;
     
     // Show/hide screens
     const hideSettings = () => {
         if (settingsMenu) settingsMenu.classList.add('hidden');
+        if (onSettingsCloseCallback) onSettingsCloseCallback();
     };
 
     const showSettings = () => {
         if (settingsMenu) settingsMenu.classList.remove('hidden');
+        if (onSettingsOpenCallback) onSettingsOpenCallback();
     };
 
     const showMainMenu = () => {
@@ -104,6 +108,8 @@ function createUI() {
     const onRaceMode = (fn) => { onRaceModeCallback = fn; };
     const onLevelMode = (fn) => { onLevelSelectCallback = fn; };
     const onMenu = (fn) => { onMenuCallback = fn; };
+    const onSettingsOpen = (fn) => { onSettingsOpenCallback = fn; };
+    const onSettingsClose = (fn) => { onSettingsCloseCallback = fn; };
     
     // Populate level buttons (excluding endless mode)
     const setLevelOptions = (levelNames = []) => {
@@ -146,6 +152,8 @@ function createUI() {
         onRaceMode,
         onLevelMode,
         onMenu,
+        onSettingsOpen,
+        onSettingsClose,
         showMainMenu,
         showLevelSelect,
         showGame

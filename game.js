@@ -29,6 +29,9 @@ function setDefaultStatusMessage() {
 let raceTimeRemaining = 0;
 let raceScore = 0;
 let raceHighScore = 0;
+// Pause state (pauses timer when settings open)
+let isPaused = false;
+let pauseStartedTime = 0; // Track the exact time pause began
 
 // Flash the +2 bonus overlay briefly
 function showBonusOverlay() {
@@ -190,6 +193,25 @@ async function initializeGame() {
     // wire reset button
     const resetMarble = () => resetGame();
     ui.onReset(resetMarble);
+
+    // Wire pause/resume for settings menu
+    if (ui.onSettingsOpen) {
+        ui.onSettingsOpen(() => {
+            isPaused = true;
+            pauseStartedTime = performance.now();
+        });
+    }
+    if (ui.onSettingsClose) {
+        ui.onSettingsClose(() => {
+            // Adjust start time to account for paused duration
+            if (pauseStartedTime && !gameState.isWon) {
+                const pausedDuration = performance.now() - pauseStartedTime;
+                if (animate._startTime) animate._startTime += pausedDuration;
+            }
+            isPaused = false;
+        });
+    }
+
     // wire dark mode checkbox
     if (ui.onDarkModeToggle) ui.onDarkModeToggle((enabled) => {
         darkMode = Boolean(enabled);
@@ -315,8 +337,11 @@ async function switchLevel(index) {
     // Update UI selection
     if (ui.setSelectedLevel) ui.setSelectedLevel(index);
 
-    // Clear UI timer/message
+    // Clear UI timer/message and reset animation state
     if (ui.setTimer) ui.setTimer(0);
+    animate._started = false;
+    animate._finished = false;
+    animate._startTime = performance.now();
     setDefaultStatusMessage();
 }
 
@@ -630,8 +655,8 @@ function animate() {
     const deltaTime = (currentTime - lastFrameTime) / 1000;
     lastFrameTime = currentTime;
 
-    // Race mode countdown (pause during transitions)
-    if (gameMode === 'race' && !gameState.isTransitioning) {
+    // Race mode countdown (pause during transitions and when paused)
+    if (gameMode === 'race' && !gameState.isTransitioning && !isPaused) {
         const prev = raceTimeRemaining;
         raceTimeRemaining = Math.max(0, raceTimeRemaining - deltaTime);
         if (ui && ui.setTimer) ui.setTimer(raceTimeRemaining);
@@ -667,8 +692,8 @@ function animate() {
             levelData && levelData.goal ? levelData.goal.radius ?? 0.8 : 0.8
         );
 
-        // update UI timer if UI available (skip for race mode which uses countdown)
-        if (ui && gameMode !== 'race') {
+        // update UI timer if UI available (skip for race mode which uses countdown, skip if paused)
+        if (ui && gameMode !== 'race' && !isPaused) {
             if (!animate._started) {
                 const v = marblePhysics.velocity || { length: () => 0 };
                 if ((v.length && v.length() > 0.02) || Object.values(inputController.getKeys()).some(Boolean)) {
