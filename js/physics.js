@@ -21,7 +21,16 @@ class PhysicsEngine {
             isOverHole = distToHole < (holeRadius - marbleRadius * 0.5);
         }
         
-        gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5 && !isOverHole;
+        // Commit to falling once more than 75% of the ball has crossed the top plane of platform
+        // 75% threshold: center below platformTop + marbleRadius*0.25
+        if (!marblePhysics.fallCommitted && isOverHole && marblePhysics.position.y < (platformY + marbleRadius * 0.25)) {
+            marblePhysics.fallCommitted = true;
+        }
+
+        // Treat as effectively over hole if we've committed and are still within the upper half height
+        const effectiveOverHole = isOverHole || (marblePhysics.fallCommitted && marblePhysics.position.y < (platformY + marbleRadius));
+
+        gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5 && !effectiveOverHole;
 
         // Calculate gravity in world space
         let gravityX = 0;
@@ -55,20 +64,39 @@ class PhysicsEngine {
         // Obstacle collision (simple sphere vs AABB)
         // Marble is treated as a sphere with radius 0.5 (matches geometry)
         if (Array.isArray(obstacles)) {
+            // Use a unified collision height for all obstacles regardless of visuals
+            const obstacleCollisionHeight = 0.5; // world units above platform top
+            const obstacleHalfY = obstacleCollisionHeight / 2;
             for (const obs of obstacles) {
                 if (!obs) continue;
                 // obstacle AABB in platform-local space. Prefer mesh position when available,
                 // otherwise use the stored x/z and compute y from height.
                 const ox = (obs.mesh && obs.mesh.position) ? obs.mesh.position.x : (obs.x ?? 0);
-                const oy = (obs.mesh && obs.mesh.position) ? obs.mesh.position.y : ((obs.height || 0) / 2);
+                // Force a consistent hitbox center height so minY=0 and maxY=obstacleCollisionHeight
+                const oy = obstacleHalfY;
                 const oz = (obs.mesh && obs.mesh.position) ? obs.mesh.position.z : (obs.z ?? 0);
                 const halfX = (obs.width || 0) / 2;
-                const halfY = (obs.height || 0) / 2;
+                const halfY = obstacleHalfY;
                 const halfZ = (obs.depth || 0) / 2;
 
                 const minX = ox - halfX, maxX = ox + halfX;
                 const minY = oy - halfY, maxY = oy + halfY;
                 const minZ = oz - halfZ, maxZ = oz + halfZ;
+
+                // If the marble is over the hole (or has committed to fall), allow it to fall through
+                // by disabling obstacle collisions directly under the hole footprint.
+                // This keeps other obstacles active so the player still must cross them.
+                if ((isOverHole || marblePhysics.fallCommitted) && holePosition) {
+                    // 2D circle (hole) vs AABB (obstacle top-down) intersection test
+                    const closestHX = Math.max(minX, Math.min(holePosition.x, maxX));
+                    const closestHZ = Math.max(minZ, Math.min(holePosition.z, maxZ));
+                    const ddx = holePosition.x - closestHX;
+                    const ddz = holePosition.z - closestHZ;
+                    if ((ddx * ddx + ddz * ddz) <= (holeRadius * holeRadius)) {
+                        // Skip collision response for this obstacle when over the hole
+                        continue;
+                    }
+                }
 
                 // Closest point on AABB to sphere center
                 const cx = Math.max(minX, Math.min(marblePhysics.position.x, maxX));
@@ -111,7 +139,7 @@ class PhysicsEngine {
         const platformBottom = -1.0;
         const platformTop = 0.0;
         
-        if (!isOverHole) {
+        if (!effectiveOverHole) {
             // Keep ball on top of platform
             if (marblePhysics.position.y < platformTop + 0.5) {
                 marblePhysics.position.y = platformTop + 0.5;

@@ -749,6 +749,8 @@ function animate() {
             const goalRadius = goal.radius ?? 0.8;
             const d2 = dx*dx + dz*dz;
             const marbleY = gameObjects.getMarble().position.y;
+            const platformTop = 0.0;
+            const committed75 = Boolean(marblePhysics && marblePhysics.fallCommitted);
             
                 // Win when ball is over hole AND has fallen below platform for several frames
                 if (!animate._finished && d2 < (goalRadius * goalRadius)) {
@@ -786,11 +788,11 @@ function animate() {
                             }
                             startLevelTransition();
                         } else if (gameMode === 'race') {
-                            // In race mode, check if level was beaten in 7 seconds or less
+                            // In race mode, award +10 if beaten in under 6 seconds
                             const levelTime = (performance.now() - raceLevelStartTime) / 1000;
                             let bonusTime = 5.0;
                             let bonusAmount = 5;
-                            if (levelTime <= 7.0) {
+                            if (levelTime <= 6.0) {
                                 bonusTime = 10.0;
                                 bonusAmount = 10;
                             }
@@ -811,8 +813,57 @@ function animate() {
                         }
                     }
                 } else {
-                    // reset counter when not over the hole
-                    holeBelowCounter = 0;
+                    // If we've committed (75% in) and are clearly below the top plane,
+                    // count it as a win even if not perfectly centered over the hole.
+                    if (!animate._finished && committed75 && marbleY < (platformTop - 0.2)) {
+                        animate._finished = true;
+                        gameState.win();
+                        gameLogic.updateUI(gameState);
+
+                        // Remove marble from scene
+                        try { gameObjects.getPlatformGroup().remove(gameObjects.getMarble()); } catch (e) {}
+
+                        if (ui) {
+                            const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
+                            ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
+                        }
+
+                        // Handle level completion based on game mode
+                        if (gameMode === 'endless') {
+                            const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
+                            if (!isFinite(endlessBestTime) || elapsed < endlessBestTime) {
+                                endlessBestTime = elapsed;
+                                try { localStorage.setItem('endlessBestTime', String(endlessBestTime)); } catch (e) {}
+                                if (ui.setFastestTime) ui.setFastestTime(endlessBestTime);
+                                if (ui.pulseFastest) ui.pulseFastest();
+                            }
+                            startLevelTransition();
+                        } else if (gameMode === 'race') {
+                            const levelTime = (performance.now() - raceLevelStartTime) / 1000;
+                            let bonusTime = 5.0;
+                            let bonusAmount = 5;
+                            if (levelTime <= 6.0) {
+                                bonusTime = 10.0;
+                                bonusAmount = 10;
+                            }
+                            raceTimeRemaining += bonusTime;
+                            raceScore += 1;
+                            showBonusOverlay(bonusAmount);
+                            startLevelTransition();
+                        } else {
+                            setTimeout(() => {
+                                platformController.enabled = false;
+                                if (ui && ui.showLevelSelect) {
+                                    ui.showLevelSelect();
+                                } else if (ui && ui.showMainMenu) {
+                                    ui.showMainMenu();
+                                }
+                            }, 2000);
+                        }
+                    } else {
+                        // reset counter when not over the hole
+                        holeBelowCounter = 0;
+                    }
                 }
         } else {
             // fallback to existing check

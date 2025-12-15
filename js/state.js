@@ -132,11 +132,14 @@ class MarblePhysics {
         this.position = (level && level.start) ? new THREE.Vector3(level.start.x, level.start.y, level.start.z) : new THREE.Vector3(-8, 1.5, -8);
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.mass = 1;
+        // Once the ball passes halfway through the hole, commit to falling
+        this.fallCommitted = false;
     }
 
     reset() {
         (this.level && this.level.start) ? this.position.set(this.level.start.x, this.level.start.y, this.level.start.z) : this.position.set(-8, 1.5, -8);
         this.velocity.set(0, 0, 0);
+        this.fallCommitted = false;
     }
 
     getPosition() {
