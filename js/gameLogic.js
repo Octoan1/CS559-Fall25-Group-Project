@@ -25,7 +25,7 @@ class GameLogic {
             statusElement.textContent = 'You Won! Press R to Reset';
             statusElement.style.color = '#00ff00';
         } else {
-            statusElement.textContent = 'Get the marble to the hole!';
+            statusElement.textContent = 'Get the ball in the hole!';
             statusElement.style.color = 'white';
         }
     }

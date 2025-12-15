@@ -242,3 +242,5 @@ function loadLevel(index = 0, url = 'levels.json') {
 // expose globally for non-module scripts
 window.loadLevels = loadLevels;
 window.loadLevel = loadLevel;
+window.generateProceduralLevel = generateProceduralLevel;
+window.normalizeLevel = normalizeLevel;

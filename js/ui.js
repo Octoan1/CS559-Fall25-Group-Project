@@ -1,10 +1,94 @@
-// Minimal UI helper for the non-module root version
+// UI system with main menu, level selection, and in-game interface
 function createUI() {
     const timerEl = document.getElementById('timer');
     const messageEl = document.getElementById('status');
     const resetBtn = document.getElementById('resetBtn');
-    const levelSelect = document.getElementById('levelSelect');
+    const menuBtn = document.getElementById('menuBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const settingsMenu = document.getElementById('settingsMenu');
+    const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+    const darkEl = document.getElementById('darkModeCheckbox');
+    
+    // Menu elements
+    const mainMenu = document.getElementById('mainMenu');
+    const levelSelectScreen = document.getElementById('levelSelectScreen');
+    const gameUI = document.getElementById('gameUI');
+    const controls = document.getElementById('controls');
+    const endlessModeBtn = document.getElementById('endlessModeBtn');
+    const raceModeBtn = document.getElementById('raceModeBtn');
+    const levelModeBtn = document.getElementById('levelModeBtn');
+    const backToMainBtn = document.getElementById('backToMainBtn');
+    const levelGrid = document.getElementById('levelGrid');
+    
+    let onEndlessModeCallback = null;
+    let onRaceModeCallback = null;
+    let onLevelSelectCallback = null;
+    let onMenuCallback = null;
+    
+    // Show/hide screens
+    const hideSettings = () => {
+        if (settingsMenu) settingsMenu.classList.add('hidden');
+    };
 
+    const showSettings = () => {
+        if (settingsMenu) settingsMenu.classList.remove('hidden');
+    };
+
+    const showMainMenu = () => {
+        mainMenu.classList.remove('hidden');
+        levelSelectScreen.classList.add('hidden');
+        gameUI.classList.add('hidden');
+        controls.classList.add('hidden');
+        hideSettings();
+    };
+    
+    const showLevelSelect = () => {
+        mainMenu.classList.add('hidden');
+        levelSelectScreen.classList.remove('hidden');
+        gameUI.classList.add('hidden');
+        controls.classList.add('hidden');
+        hideSettings();
+    };
+    
+    const showGame = () => {
+        mainMenu.classList.add('hidden');
+        levelSelectScreen.classList.add('hidden');
+        gameUI.classList.remove('hidden');
+        controls.classList.remove('hidden');
+        hideSettings();
+    };
+    
+    // Event handlers
+    endlessModeBtn.addEventListener('click', () => {
+        showGame();
+        if (onEndlessModeCallback) onEndlessModeCallback();
+    });
+
+    if (raceModeBtn) raceModeBtn.addEventListener('click', () => {
+        showGame();
+        if (onRaceModeCallback) onRaceModeCallback();
+    });
+    
+    levelModeBtn.addEventListener('click', () => {
+        showLevelSelect();
+    });
+    
+    backToMainBtn.addEventListener('click', () => {
+        showMainMenu();
+        if (onMenuCallback) onMenuCallback();
+    });
+    
+    if (settingsBtn) settingsBtn.addEventListener('click', showSettings);
+
+    if (closeSettingsBtn) closeSettingsBtn.addEventListener('click', hideSettings);
+
+    menuBtn.addEventListener('click', () => {
+        hideSettings();
+        showMainMenu();
+        if (onMenuCallback) onMenuCallback();
+    });
+    
+    // API for game logic
     const setTimer = (seconds) => {
         if (!timerEl) return;
         const s = typeof seconds === 'number' ? seconds : Number(seconds) || 0;
@@ -14,25 +98,58 @@ function createUI() {
     const setMessage = (text) => { if (messageEl) messageEl.textContent = text; };
     const clearMessage = () => { if (messageEl) messageEl.textContent = ''; };
 
-    const onReset = (fn) => { if (resetBtn) resetBtn.addEventListener('click', fn); };
-    const setLevelOptions = (options = []) => {
-        if (!levelSelect) return;
-        levelSelect.innerHTML = '';
-        options.forEach((opt, i) => {
-            const o = document.createElement('option');
-            o.value = String(i);
-            o.textContent = opt;
-            levelSelect.appendChild(o);
+    const onReset = (fn) => { if (resetBtn) resetBtn.addEventListener('click', () => { hideSettings(); fn(); }); };
+    
+    const onEndlessMode = (fn) => { onEndlessModeCallback = fn; };
+    const onRaceMode = (fn) => { onRaceModeCallback = fn; };
+    const onLevelMode = (fn) => { onLevelSelectCallback = fn; };
+    const onMenu = (fn) => { onMenuCallback = fn; };
+    
+    // Populate level buttons (excluding endless mode)
+    const setLevelOptions = (levelNames = []) => {
+        if (!levelGrid) return;
+        levelGrid.innerHTML = '';
+        
+        levelNames.forEach((name, index) => {
+            // Skip endless mode levels
+            if (name.startsWith('Endless')) return;
+            
+            const btn = document.createElement('button');
+            btn.className = 'level-button';
+            btn.textContent = name;
+            btn.addEventListener('click', () => {
+                showGame();
+                if (onLevelSelectCallback) onLevelSelectCallback(index);
+            });
+            levelGrid.appendChild(btn);
         });
     };
-    const onLevelChange = (fn) => { if (!levelSelect) return; levelSelect.addEventListener('change', (e) => fn(Number(e.target.value))); };
-    const setSelectedLevel = (index) => { if (!levelSelect) return; levelSelect.value = String(index); };
 
-    const darkEl = document.getElementById('darkModeCheckbox');
     const onDarkModeToggle = (fn) => { if (!darkEl) return; darkEl.addEventListener('change', (e) => fn(Boolean(e.target.checked))); };
     const setDarkMode = (enabled) => { if (!darkEl) return; darkEl.checked = Boolean(enabled); };
+    
+    // Compatibility methods (no longer used but kept for backward compatibility)
+    const onLevelChange = () => {};
+    const setSelectedLevel = () => {};
 
-    return { setTimer, setMessage, clearMessage, onReset, setLevelOptions, onLevelChange, setSelectedLevel, onDarkModeToggle, setDarkMode };
+    return { 
+        setTimer, 
+        setMessage, 
+        clearMessage, 
+        onReset, 
+        setLevelOptions, 
+        onLevelChange, 
+        setSelectedLevel, 
+        onDarkModeToggle, 
+        setDarkMode,
+        onEndlessMode,
+        onRaceMode,
+        onLevelMode,
+        onMenu,
+        showMainMenu,
+        showLevelSelect,
+        showGame
+    };
 }
 
 window.createUI = createUI;

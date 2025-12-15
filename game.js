@@ -14,6 +14,34 @@ let levels = [];
 let currentLevelIndex = 0;
 // persist the dark mode state so it survives level switches
 let darkMode = false;
+// track game mode: 'endless' or 'level'
+let gameMode = 'level';
+
+// Helper to set the default status text and color
+function setDefaultStatusMessage() {
+    if (!ui || !ui.setMessage) return;
+    ui.setMessage('Get the ball in the hole!');
+    const statusEl = document.getElementById('status');
+    if (statusEl) statusEl.style.color = 'white';
+}
+
+// Race mode state
+let raceTimeRemaining = 0;
+let raceScore = 0;
+let raceHighScore = 0;
+
+// Flash the +2 bonus overlay briefly
+function showBonusOverlay() {
+    const overlay = document.getElementById('bonusOverlay');
+    if (!overlay) return;
+    const content = overlay.querySelector('.bonus-content');
+    overlay.classList.remove('hidden');
+    if (content) content.style.animation = 'flashBonus 1500ms ease-out';
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        if (content) content.style.animation = '';
+    }, 1500);
+}
 
 async function initializeGame() {
     // Preload shaders first
@@ -22,6 +50,12 @@ async function initializeGame() {
     // Initialize scene and UI first
     sceneSetup = new SceneSetup();
     ui = createUI();
+
+    // Load persisted race high score
+    try {
+        const saved = Number(localStorage.getItem('raceHighScore') || 0);
+        raceHighScore = isNaN(saved) ? 0 : saved;
+    } catch (e) { raceHighScore = 0; }
 
     // Load all levels (procedural or static)
     try {
@@ -34,7 +68,6 @@ async function initializeGame() {
     // Populate level selector UI
     const levelNames = levels.map((l, i) => l.name || `Level ${i}`);
     if (ui.setLevelOptions) ui.setLevelOptions(levelNames);
-    if (ui.onLevelChange) ui.onLevelChange((idx) => switchLevel(idx));
 
     // Create common systems
     gameState = new GameState();
@@ -43,10 +76,116 @@ async function initializeGame() {
     platformController = new PlatformController(gameState, inputController);
     physicsEngine = new PhysicsEngine();
 
-    // Create initial level
-    currentLevelIndex = 0;
-    if (ui.setSelectedLevel) ui.setSelectedLevel(currentLevelIndex);
-    await switchLevel(currentLevelIndex);
+    // Handle endless mode button
+    ui.onEndlessMode(async () => {
+        gameMode = 'endless';
+        // Generate a new procedural level for endless mode
+        const rawLevel = generateProceduralLevel({
+            gridRows: 20,
+            gridCols: 20,
+            minObstacles: 10,
+            maxObstacles: 20,
+            retries: 500
+        });
+        const endlessLevel = normalizeLevel(rawLevel);
+        
+        // Remove previous gameObjects from scene (if any)
+        try {
+            if (gameObjects && gameObjects.getPlatformGroup) {
+                sceneSetup.scene.remove(gameObjects.getPlatformGroup());
+            }
+        } catch (e) {
+            // ignore
+        }
+        
+        // Create new game objects for endless mode
+        levelData = endlessLevel;
+        gameObjects = new GameObjects(sceneSetup.scene, endlessLevel, darkMode);
+        if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
+            gameObjects.setDarkMode(darkMode);
+        }
+        gameLogic = new GameLogic(endlessLevel);
+        
+        // Reset game state and marble physics
+        gameState.reset();
+        marblePhysics.position.set(endlessLevel.start.x, endlessLevel.start.y, endlessLevel.start.z);
+        marblePhysics.velocity.set(0, 0, 0);
+        marblePhysics.level = endlessLevel;
+        setDefaultStatusMessage();
+        
+        // Reset animation flags
+        animate._started = false;
+        animate._finished = false;
+        animate._startTime = performance.now();
+        
+        platformController.enabled = true;
+        
+        // Clear UI
+        if (ui.setTimer) ui.setTimer(0);
+        setDefaultStatusMessage();
+    });
+
+    // Handle race mode button
+    ui.onRaceMode(async () => { initRaceMode(); });
+
+    // Helper to start (or restart) race mode
+    function initRaceMode() {
+        gameMode = 'race';
+        const rawLevel = generateProceduralLevel({
+            gridRows: 20,
+            gridCols: 20,
+            minObstacles: 10,
+            maxObstacles: 20,
+            retries: 500
+        });
+        const raceLevel = normalizeLevel(rawLevel);
+        try {
+            if (gameObjects && gameObjects.getPlatformGroup) {
+                sceneSetup.scene.remove(gameObjects.getPlatformGroup());
+            }
+        } catch (e) {}
+        levelData = raceLevel;
+        gameObjects = new GameObjects(sceneSetup.scene, raceLevel, darkMode);
+        if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
+            gameObjects.setDarkMode(darkMode);
+        }
+        gameLogic = new GameLogic(raceLevel);
+        raceTimeRemaining = 20.0;
+        raceScore = 0;
+        gameState.reset();
+        marblePhysics.position.set(raceLevel.start.x, raceLevel.start.y, raceLevel.start.z);
+        marblePhysics.velocity.set(0, 0, 0);
+        marblePhysics.level = raceLevel;
+        animate._started = true;
+        animate._finished = false;
+        animate._startTime = performance.now();
+        platformController.enabled = true;
+        if (ui.setTimer) ui.setTimer(raceTimeRemaining);
+        setDefaultStatusMessage();
+    }
+    // Expose for external calls
+    window.__initRaceMode = initRaceMode;
+
+    // Handle level mode selection
+    ui.onLevelMode(async (levelIndex) => {
+        gameMode = 'level';
+        currentLevelIndex = levelIndex;
+        await switchLevel(currentLevelIndex);
+        platformController.enabled = true;
+    });
+
+    // Handle menu button
+    ui.onMenu(() => {
+        platformController.enabled = false;
+        gameState.reset();
+        try {
+            if (gameObjects && gameObjects.getPlatformGroup && sceneSetup && sceneSetup.scene) {
+                sceneSetup.scene.remove(gameObjects.getPlatformGroup());
+            }
+        } catch (e) {
+            // ignore
+        }
+    });
 
     // wire reset button
     const resetMarble = () => resetGame();
@@ -140,6 +279,9 @@ async function switchLevel(index) {
 
     // Create new game objects for this level
     gameObjects = new GameObjects(sceneSetup.scene, levelData, darkMode);
+    if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
+        gameObjects.setDarkMode(darkMode);
+    }
     gameLogic = new GameLogic(levelData);
 
     // Reset game state and marble physics to level start
@@ -150,6 +292,8 @@ async function switchLevel(index) {
     const start = (levelData && levelData.start) ? levelData.start : { x: -8, y: 1.5, z: -8 };
     marblePhysics.position.set(start.x, start.y, start.z);
     marblePhysics.velocity.set(0,0,0);
+        if (ui && ui.clearMessage) ui.clearMessage();
+        setDefaultStatusMessage();
 
     // If the level contains a grid of walls, populate visible obstacles
     if (levelData && Array.isArray(levelData.walls) && levelData.walls.length) {
@@ -173,7 +317,7 @@ async function switchLevel(index) {
 
     // Clear UI timer/message
     if (ui.setTimer) ui.setTimer(0);
-    if (ui.clearMessage) ui.clearMessage();
+    setDefaultStatusMessage();
 }
 
 function resetGame() {
@@ -194,7 +338,7 @@ function resetGame() {
     gameObjects.getPlatformGroup().rotation.x = 0;
     gameObjects.getPlatformGroup().rotation.z = 0;
     if (ui && ui.setTimer) animate._startTime = performance.now();
-    if (ui && ui.clearMessage) ui.clearMessage();
+    setDefaultStatusMessage();
     animate._started = false;
     animate._finished = false;
     gameLogic.updateUI(gameState);
@@ -210,7 +354,16 @@ async function startLevelTransition() {
     // Create a new level in the background
     try {
         window.__cachedLevels = null;
-        const newLevelData = await loadLevel(0);
+        // Generate a new procedural level for endless mode
+        const rawLevel = generateProceduralLevel({
+            gridRows: 20,
+            gridCols: 20,
+            minObstacles: 10,
+            maxObstacles: 20,
+            retries: 500
+        });
+        // Normalize to convert grid coordinates to world coordinates
+        const newLevelData = normalizeLevel(rawLevel);
         
         // Create new platform group (will be positioned off-screen initially)
         const newPlatformGroup = new THREE.Group();
@@ -404,7 +557,7 @@ function completeTransition() {
     animate._finished = false;
     animate._startTime = performance.now();
     
-    if (ui && ui.clearMessage) ui.clearMessage();
+    setDefaultStatusMessage();
     
     // Clear transition state
     window.__transitionState = null;
@@ -457,7 +610,7 @@ async function loadNextLevel() {
         animate._finished = false;
         animate._startTime = performance.now();
         
-        if (ui && ui.clearMessage) ui.clearMessage();
+        setDefaultStatusMessage();
         
     } catch (err) {
         console.error('Failed to load next level:', err);
@@ -476,6 +629,20 @@ function animate() {
     const currentTime = Date.now();
     const deltaTime = (currentTime - lastFrameTime) / 1000;
     lastFrameTime = currentTime;
+
+    // Race mode countdown (pause during transitions)
+    if (gameMode === 'race' && !gameState.isTransitioning) {
+        const prev = raceTimeRemaining;
+        raceTimeRemaining = Math.max(0, raceTimeRemaining - deltaTime);
+        if (ui && ui.setTimer) ui.setTimer(raceTimeRemaining);
+        // Handle time expiry when not transitioning
+        if (prev > 0 && raceTimeRemaining === 0 && !gameState.isWon) {
+            // Race over -> show results overlay
+            platformController.enabled = false;
+            try { if (gameObjects && gameObjects.getMarble) gameObjects.getPlatformGroup().remove(gameObjects.getMarble()); } catch (e) {}
+            showRaceResults();
+        }
+    }
 
     // Handle level transition animation if active
     if (gameState.isTransitioning) {
@@ -500,8 +667,8 @@ function animate() {
             levelData && levelData.goal ? levelData.goal.radius ?? 0.8 : 0.8
         );
 
-        // update UI timer if UI available
-        if (ui) {
+        // update UI timer if UI available (skip for race mode which uses countdown)
+        if (ui && gameMode !== 'race') {
             if (!animate._started) {
                 const v = marblePhysics.velocity || { length: () => 0 };
                 if ((v.length && v.length() > 0.02) || Object.values(inputController.getKeys()).some(Boolean)) {
@@ -548,8 +715,28 @@ function animate() {
                             const elapsed = (performance.now() - (animate._startTime || performance.now()))/1000;
                             ui.setMessage(`Goal! Time: ${elapsed.toFixed(2)}s`);
                         }
-                        // Start level transition animation
-                        startLevelTransition();
+                        
+                        // Handle level completion based on game mode
+                        if (gameMode === 'endless') {
+                            // In endless mode, transition to next level
+                            startLevelTransition();
+                        } else if (gameMode === 'race') {
+                            // In race mode, add time and continue
+                            raceTimeRemaining += 5.0;
+                            raceScore += 1;
+                            showBonusOverlay();
+                            startLevelTransition();
+                        } else {
+                            // In level mode, return to level select after a delay
+                            setTimeout(() => {
+                                platformController.enabled = false;
+                                if (ui && ui.showLevelSelect) {
+                                    ui.showLevelSelect();
+                                } else if (ui && ui.showMainMenu) {
+                                    ui.showMainMenu();
+                                }
+                            }, 2000);
+                        }
                     }
                 } else {
                     // reset counter when not over the hole
@@ -571,6 +758,47 @@ function animate() {
     sceneSetup.render(sceneSetup.scene, sceneSetup.camera);
     // Update DOM grid labels to follow camera/platform
     if (showGridCoords && gridLabelElements) updateGridLabels();
+}
+
+// Show end-of-race results overlay with high score and actions
+function showRaceResults() {
+    // Update high score
+    if (raceScore > raceHighScore) {
+        raceHighScore = raceScore;
+        try { localStorage.setItem('raceHighScore', String(raceHighScore)); } catch (e) {}
+    }
+
+    const overlay = document.getElementById('raceResultsOverlay');
+    if (!overlay) return;
+    const levelsEl = document.getElementById('raceLevelsBeaten');
+    const hsEl = document.getElementById('raceHighScore');
+    const tryBtn = document.getElementById('raceTryAgainBtn');
+    const menuBtn = document.getElementById('raceMainMenuBtn');
+
+    if (levelsEl) levelsEl.textContent = `Levels beaten: ${raceScore}`;
+    if (hsEl) hsEl.textContent = `High score: ${raceHighScore}`;
+
+    overlay.classList.remove('hidden');
+
+    // Rebind actions each time (overwrite old if any)
+    if (tryBtn) tryBtn.onclick = () => {
+        overlay.classList.add('hidden');
+        // Restart race mode
+        if (typeof window.__initRaceMode === 'function') window.__initRaceMode();
+    };
+
+    if (menuBtn) menuBtn.onclick = () => {
+        overlay.classList.add('hidden');
+        // Clean up scene and return to main menu
+        platformController.enabled = false;
+        gameState.reset();
+        try {
+            if (gameObjects && gameObjects.getPlatformGroup && sceneSetup && sceneSetup.scene) {
+                sceneSetup.scene.remove(gameObjects.getPlatformGroup());
+            }
+        } catch (e) {}
+        if (ui && ui.showMainMenu) ui.showMainMenu();
+    };
 }
 
 // Grid debugging

@@ -3,20 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marble Game</title>
+    <title>Going Marbles!</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
             font-family: Arial, sans-serif;
-            /* Light background gradient for basic (light) mode */
             background: linear-gradient(180deg, #cbdee9 0%, #46a5bf 60%);
             background-attachment: fixed;
         }
         #canvas {
             display: block;
         }
-        #ui {
+        
+        /* Menu Screens */
+        .menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+        }
+        .menu-screen.hidden {
+            display: none;
+        }
+        .menu-title {
+            font-size: 72px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 50px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.7);
+        }
+        .menu-button {
+            font-size: 24px;
+            padding: 15px 40px;
+            margin: 10px;
+            background: #46a5bf;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .menu-button:hover {
+            background: #5bb5cf;
+            transform: scale(1.05);
+        }
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            max-width: 800px;
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+        .level-button {
+            font-size: 18px;
+            padding: 20px;
+            background: #46a5bf;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        .level-button:hover {
+            background: #5bb5cf;
+            transform: scale(1.05);
+        }
+        .back-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 18px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .back-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        /* In-game UI */
+        #gameUI {
             position: absolute;
             top: 20px;
             left: 20px;
@@ -25,6 +107,26 @@
             padding: 15px;
             border-radius: 5px;
             font-size: 18px;
+        }
+        #gameUI.hidden {
+            display: none;
+        }
+        #timer {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.25);
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: 0.5px;
+        }
+        #timer::before {
+            content: '⏱';
+            font-size: 14px;
+            opacity: 0.8;
         }
         #status {
             margin-top: 10px;
@@ -39,26 +141,245 @@
             border-radius: 5px;
             font-size: 14px;
         }
+        #controls.hidden {
+            display: none;
+        }
+
+        /* Settings UI */
+        #gameUI .game-ui-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        #gameUI #settingsBtn {
+            width: 44px;
+            height: 44px;
+            padding: 0;
+            background: rgba(255,255,255,0.15) center center no-repeat;
+            background-image: url('textures/settings.png');
+            background-size: 28px 28px;
+            color: transparent;
+            border: 1px solid rgba(255,255,255,0.35);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #gameUI #settingsBtn:hover {
+            background-color: rgba(255,255,255,0.25);
+        }
+        .settings-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.65);
+            z-index: 1200;
+        }
+        .settings-overlay.hidden { display: none; }
+        .settings-card {
+            background: rgba(20, 28, 36, 0.9);
+            color: white;
+            padding: 24px;
+            border-radius: 12px;
+            min-width: 280px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .settings-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+        .settings-card .menu-button {
+            width: 100%;
+        }
+        .settings-card .menu-button.secondary {
+            background: #5c7c8a;
+        }
+        .settings-card .menu-button.ghost {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .settings-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+        }
+        .toggle-checkbox {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-track {
+            position: relative;
+            width: 48px;
+            height: 26px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.35);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.35);
+            transition: all 0.2s ease;
+        }
+        .toggle-thumb {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            transition: all 0.2s ease;
+        }
+        .toggle-checkbox:checked + .toggle-track {
+            background: #46a5bf;
+            border-color: #5bb5cf;
+        }
+        .toggle-checkbox:checked + .toggle-track .toggle-thumb {
+            transform: translateX(22px);
+        }
+        /* Race Results Overlay */
+        .results-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.65);
+            z-index: 1400;
+        }
+        .results-overlay.hidden { display: none; }
+        .results-card {
+            background: rgba(20, 28, 36, 0.95);
+            color: white;
+            padding: 28px;
+            border-radius: 14px;
+            min-width: 360px;
+            box-shadow: 0 12px 34px rgba(0,0,0,0.45);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            text-align: center;
+        }
+        .results-title { font-size: 28px; font-weight: 800; }
+        .results-stats { font-size: 20px; display: flex; flex-direction: column; gap: 6px; }
+        .results-actions { margin-top: 8px; display: flex; gap: 10px; justify-content: center; }
+        .results-actions .menu-button { font-size: 18px; padding: 10px 22px; }
+        /* Bonus +2 overlay */
+        .bonus-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.0);
+            pointer-events: none;
+            z-index: 1300;
+        }
+        .bonus-overlay.hidden { display: none; }
+        .bonus-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 96px;
+            font-weight: 800;
+            color: #ffffff;
+            text-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            padding: 16px 24px;
+            border-radius: 12px;
+        }
+        .bonus-icon { font-size: 72px; opacity: 0.95; }
+        .bonus-icon::before { content: '⏱'; }
+        .bonus-text { line-height: 1; }
+        @keyframes flashBonus {
+            0% { transform: scale(0.85); opacity: 0; }
+            15% { transform: scale(1.05); opacity: 1; }
+            60% { transform: scale(1.0); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0; }
+        }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div>CS 559 Final Project: Marble Game</div>
-        <div>Group ID: 5555</div>
-        <div id="status">Get the marble to the hole!</div>
-        <div id="timer">Time: 0.00s</div>
-        <div style="margin-top:8px;">
-            <label style="font-size:14px;">Level: <select id="levelSelect" style="margin-left:8px;"></select></label>
-        </div>
-        <button id="resetBtn" style="margin-top:8px;padding:6px 10px;">Reset</button>
-        <div style="margin-top:8px; font-size:14px;">
-            <label><input type="checkbox" id="darkModeCheckbox" style="margin-right:6px;">Dark mode</label>
+    <!-- Main Menu -->
+    <div id="mainMenu" class="menu-screen">
+        <div class="menu-title">Going Marbles!</div>
+        <button id="endlessModeBtn" class="menu-button">Endless Mode</button>
+        <button id="raceModeBtn" class="menu-button">Race Mode</button>
+        <button id="levelModeBtn" class="menu-button">Level Mode</button>
+    </div>
+    
+    <!-- Level Selection Screen -->
+    <div id="levelSelectScreen" class="menu-screen hidden">
+        <button id="backToMainBtn" class="back-button">← Back</button>
+        <div class="menu-title" style="font-size: 48px;">Select Level</div>
+        <div id="levelGrid" class="level-grid"></div>
+    </div>
+    
+    <!-- In-Game UI -->
+    <div id="gameUI" class="hidden">
+        <div class="game-ui-row">
+            <div>
+                <div id="status">Get the ball in the hole!</div>
+                <div id="timer">Time: 0.00s</div>
+            </div>
+            <button id="settingsBtn" aria-label="Settings" title="Settings"></button>
         </div>
     </div>
-    <div id="controls">
+    
+    <div id="controls" class="hidden">
         <div>WASD & Arrow Keys: Rotate Platform</div>
         <div>R: Reset Game</div>
-        <div>N: Skip Level</div>
+    </div>
+
+    <!-- Settings Menu -->
+    <div id="settingsMenu" class="settings-overlay hidden">
+        <div class="settings-card">
+            <div class="settings-title">Settings</div>
+            <button id="resetBtn" class="menu-button">Reset Level</button>
+            <label class="settings-toggle">
+                <input type="checkbox" id="darkModeCheckbox" class="toggle-checkbox">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span>Dark Mode</span>
+            </label>
+            <button id="menuBtn" class="menu-button secondary">Main Menu</button>
+            <button id="closeSettingsBtn" class="menu-button ghost">Back</button>
+        </div>
+    </div>
+    <!-- Race bonus flash overlay -->
+    <div id="bonusOverlay" class="bonus-overlay hidden">
+        <div class="bonus-content">
+            <span class="bonus-icon"></span>
+            <span class="bonus-text">+5</span>
+        </div>
+    </div>
+    <!-- Race Results Overlay -->
+    <div id="raceResultsOverlay" class="results-overlay hidden">
+        <div class="results-card">
+            <div class="results-title">Time Up!</div>
+            <div class="results-stats">
+                <div id="raceLevelsBeaten">Levels beaten: 0</div>
+                <div id="raceHighScore">High score: 0</div>
+            </div>
+            <div class="results-actions">
+                <button id="raceTryAgainBtn" class="menu-button">Try Again</button>
+                <button id="raceMainMenuBtn" class="menu-button secondary">Main Menu</button>
+            </div>
+        </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="js/physics.js"></script>
