@@ -339,7 +339,10 @@ class GameObjects {
 
     setDarkMode(enabled) {
         const on = Boolean(enabled);
+        // Always remember preference even if prototype mode overrides visuals
         this.darkMode = on;
+        // If prototype mode is active, defer material updates until prototype is disabled
+        if (this._prototypeMode) return;
 
         // Platform: different color but keep lighting properties similar to basic
         if (this.platformMesh) {
@@ -517,6 +520,92 @@ class GameObjects {
 
     getHole() {
         return this.hole;
+    }
+
+    setPrototypeMode(enabled) {
+        const on = Boolean(enabled);
+        this._prototypeMode = on;
+
+        if (on) {
+            // Simple flat materials and disable shadows for faster rendering
+            if (this.platformMesh) {
+                this.platformMesh.material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                this.platformMesh.castShadow = false;
+                this.platformMesh.receiveShadow = false;
+            }
+            if (this.marble) {
+                // Use basic material (keep color similar to current darkMode selection)
+                const color = this.darkMode ? 0x00aaff : 0xff6347;
+                this.marble.material = new THREE.MeshBasicMaterial({ color });
+                this.marble.castShadow = false;
+                this.marble.receiveShadow = false;
+            }
+            for (const obs of this.obstacles) {
+                if (!obs.mesh) continue;
+                // Replace obstacle geometry with a simple cube for prototype mode
+                try {
+                    if (obs.mesh.geometry && obs.mesh.geometry.dispose) obs.mesh.geometry.dispose();
+                } catch (e) { /* ignore dispose errors */ }
+
+                const boxGeo = new THREE.BoxGeometry(obs.width, obs.height || 0.5, obs.depth);
+                obs.mesh.geometry = boxGeo;
+                // Position the cube so it sits flush on the platform
+                obs.mesh.position.y = (obs.height || obs.mesh.userData && obs.mesh.userData.visualHeight) ? (obs.height / 2) : (0.5 / 2);
+
+                const color = this.darkMode ? 0x777788 : 0x808080;
+                obs.mesh.material = new THREE.MeshBasicMaterial({ color });
+                obs.mesh.castShadow = false;
+                obs.mesh.receiveShadow = false;
+            }
+        } else {
+            // Restore detailed materials consistent with current darkMode setting
+            if (this.platformMesh) {
+                const pMat = new THREE.MeshStandardMaterial({ color: this.darkMode ? 0x3a3f44 : 0x8b4513, roughness: 0.7 });
+                if (this.darkMode && this.stoneTexture) pMat.map = this.stoneTexture;
+                if (!this.darkMode && this.woodTexture) pMat.map = this.woodTexture;
+                this.platformMesh.material = pMat;
+                this.platformMesh.castShadow = true;
+                this.platformMesh.receiveShadow = true;
+            }
+            // Restore marble material (shader if available, otherwise standard)
+            if (this.marble) {
+                // Dispose previous prototype material to avoid leaks
+                try {
+                    if (Array.isArray(this.marble.material)) {
+                        this.marble.material.forEach(m => { if (m && m.dispose) m.dispose(); });
+                    } else if (this.marble.material && this.marble.material.dispose) {
+                        this.marble.material.dispose();
+                    }
+                } catch (e) { /* ignore dispose errors */ }
+
+                // Create appropriate detailed material
+                if (GameObjects.shadersLoaded && GameObjects.marbleVertexShader && GameObjects.marbleFragmentShader && this.marbleUniforms) {
+                    this.marble.material = new THREE.ShaderMaterial({
+                        uniforms: this.marbleUniforms,
+                        vertexShader: GameObjects.marbleVertexShader,
+                        fragmentShader: GameObjects.marbleFragmentShader,
+                        lights: false
+                    });
+                } else {
+                    const color = this.darkMode ? 0x00aaff : 0xff6347;
+                    this.marble.material = new THREE.MeshStandardMaterial({ color: color, metalness: 0.6, roughness: 0.4 });
+                    // If using standard material, also update color immediately
+                    this.marble.material.needsUpdate = true;
+                }
+
+                // Ensure shadows are enabled on the marble
+                this.marble.castShadow = true;
+                this.marble.receiveShadow = true;
+            }
+
+            // Re-apply darkMode materials for obstacles and other updates
+            this.setDarkMode(this.darkMode);
+            for (const obs of this.obstacles) {
+                if (!obs.mesh) continue;
+                obs.mesh.castShadow = true;
+                obs.mesh.receiveShadow = true;
+            }
+        }
     }
 
     getObstacles() {

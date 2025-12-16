@@ -152,10 +152,43 @@ class SceneSetup {
     setDarkMode(enabled) {
         // enabled = true -> show dark shader sky; false -> show light shader sky
         const on = Boolean(enabled);
+        // Always remember preference even if prototype mode overrides visuals
+        this._darkMode = on;
+        // If prototype/low-detail mode is active, don't change shader/renderer settings now
+        if (this._prototypeMode) return;
+
         if (this._skyMesh) this._skyMesh.visible = on;
         if (this._lightSkyMesh) this._lightSkyMesh.visible = !on;
         // Always keep scene background null so shader skies show through
         this.scene.background = null;
+    }
+
+    setPrototypeMode(enabled) {
+        const on = Boolean(enabled);
+        this._prototypeMode = on;
+        if (on) {
+            // Low-detail: disable shadows, hide shader skies, use flat background and lower pixel ratio
+            this._savedShadowEnabled = this.renderer.shadowMap.enabled;
+            this.renderer.shadowMap.enabled = false;
+            this._savedPixelRatio = this.renderer.getPixelRatio ? this.renderer.getPixelRatio() : window.devicePixelRatio;
+            try { this.renderer.setPixelRatio(1); } catch (e) {}
+            if (this._skyMesh) this._skyMesh.visible = false;
+            if (this._lightSkyMesh) this._lightSkyMesh.visible = false;
+            this.scene.background = new THREE.Color(0xdddddd);
+        } else {
+            // Restore previous settings
+            this.renderer.shadowMap.enabled = this._savedShadowEnabled !== undefined ? this._savedShadowEnabled : true;
+            try { this.renderer.setPixelRatio(this._savedPixelRatio || window.devicePixelRatio); } catch (e) {}
+            // Re-apply sky visibility based on dark mode preference
+            if (this._darkMode) {
+                if (this._skyMesh) this._skyMesh.visible = true;
+                if (this._lightSkyMesh) this._lightSkyMesh.visible = false;
+            } else {
+                if (this._skyMesh) this._skyMesh.visible = false;
+                if (this._lightSkyMesh) this._lightSkyMesh.visible = true;
+            }
+            this.scene.background = null;
+        }
     }
 
     setupLighting() {

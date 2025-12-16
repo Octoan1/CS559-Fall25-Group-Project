@@ -9,6 +9,7 @@ function createUI() {
     const settingsMenu = document.getElementById('settingsMenu');
     const closeSettingsBtn = document.getElementById('closeSettingsBtn');
     const darkEl = document.getElementById('darkModeCheckbox');
+    const protoEl = document.getElementById('prototypeModeCheckbox');
     
     // Menu elements
     const mainMenu = document.getElementById('mainMenu');
@@ -159,6 +160,13 @@ function createUI() {
 
     const onDarkModeToggle = (fn) => { if (!darkEl) return; darkEl.addEventListener('change', (e) => fn(Boolean(e.target.checked))); };
     const setDarkMode = (enabled) => { if (!darkEl) return; darkEl.checked = Boolean(enabled); };
+
+    const onPrototypeToggle = (fn) => { if (!protoEl) return; protoEl.addEventListener('change', (e) => {
+            // When prototype mode is toggled via UI, disable dark mode control to prevent conflicts
+            if (darkEl) darkEl.disabled = Boolean(e.target.checked);
+            fn(Boolean(e.target.checked));
+        }); };
+    const setPrototypeMode = (enabled) => { if (!protoEl) return; protoEl.checked = Boolean(enabled); if (darkEl) darkEl.disabled = Boolean(enabled); };
     
     // Compatibility methods (no longer used but kept for backward compatibility)
     const onLevelChange = () => {};
@@ -183,6 +191,8 @@ function createUI() {
         onMenu,
         onSettingsOpen,
         onSettingsClose,
+        onPrototypeToggle,
+        setPrototypeMode,
         showMainMenu,
         showLevelSelect,
         showGame

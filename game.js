@@ -14,6 +14,8 @@ let levels = [];
 let currentLevelIndex = 0;
 // persist the dark mode state so it survives level switches
 let darkMode = false;
+// persist the prototype mode (low-detail) state
+let prototypeMode = false;
 // track game mode: 'endless' or 'level'
 let gameMode = 'level';
 
@@ -127,6 +129,7 @@ async function initializeGame() {
         gameObjects = new GameObjects(sceneSetup.scene, endlessLevel, darkMode);
         if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
             gameObjects.setDarkMode(darkMode);
+            if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
         }
         gameLogic = new GameLogic(endlessLevel);
         
@@ -174,6 +177,7 @@ async function initializeGame() {
         gameObjects = new GameObjects(sceneSetup.scene, raceLevel, darkMode);
         if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
             gameObjects.setDarkMode(darkMode);
+            if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
         }
         gameLogic = new GameLogic(raceLevel);
         raceTimeRemaining = 20.0;
@@ -272,9 +276,70 @@ async function initializeGame() {
             }
         }
     });
+    // wire prototype mode checkbox (low-detail/prototype)
+    if (ui.onPrototypeToggle) ui.onPrototypeToggle((enabled) => {
+        prototypeMode = Boolean(enabled);
+        if (sceneSetup && typeof sceneSetup.setPrototypeMode === 'function') sceneSetup.setPrototypeMode(prototypeMode);
+        if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
+        // also update any platform being prepared during a transition
+        if (window.__transitionState) {
+            const ts = window.__transitionState;
+            try {
+                if (ts.newPlatform) {
+                    if (prototypeMode) {
+                        ts.newPlatform.material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                        ts.newPlatform.castShadow = false;
+                        ts.newPlatform.receiveShadow = false;
+                    } else {
+                        const pMat = ts.newPlatform.material || new THREE.MeshStandardMaterial();
+                        pMat.color = new THREE.Color(darkMode ? 0x3a3f44 : 0x8b4513);
+                        ts.newPlatform.material = pMat;
+                        ts.newPlatform.castShadow = true;
+                        ts.newPlatform.receiveShadow = true;
+                    }
+                }
+                if (ts.newMarble) {
+                    if (prototypeMode) {
+                        ts.newMarble.material = new THREE.MeshBasicMaterial({ color: darkMode ? 0x00aaff : 0xff6347 });
+                        ts.newMarble.castShadow = false;
+                        ts.newMarble.receiveShadow = false;
+                    } else {
+                        const mMat = ts.newMarble.material || new THREE.MeshStandardMaterial();
+                        mMat.color = new THREE.Color(darkMode ? 0x00aaff : 0xff6347);
+                        ts.newMarble.material = mMat;
+                        ts.newMarble.castShadow = true;
+                        ts.newMarble.receiveShadow = true;
+                    }
+                }
+                if (ts.newObstacles && Array.isArray(ts.newObstacles)) {
+                    for (const o of ts.newObstacles) {
+                        if (!o.mesh) continue;
+                        if (prototypeMode) {
+                            o.mesh.material = new THREE.MeshBasicMaterial({ color: darkMode ? 0x555566 : 0x808080 });
+                            o.mesh.castShadow = false;
+                            o.mesh.receiveShadow = false;
+                        } else {
+                            GameObjects.applyObstacleMaterial(o.mesh, darkMode, gameObjects ? gameObjects.woodTexture : null, gameObjects ? gameObjects.stoneTexture : null);
+                            o.mesh.castShadow = true;
+                            o.mesh.receiveShadow = true;
+                        }
+                    }
+                }
+            } catch (e) {
+                // ignore any errors during transition update
+            }
+        }
+    });
+    // Apply current prototype setting after obstacles are created
+    if (typeof prototypeMode !== 'undefined' && gameObjects && typeof gameObjects.setPrototypeMode === 'function') {
+        gameObjects.setPrototypeMode(prototypeMode);
+    }
+    // default prototype off
+    if (ui.setPrototypeMode) ui.setPrototypeMode(false);
         // Apply current dark-mode setting after obstacles are created
         if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
             gameObjects.setDarkMode(darkMode);
+            if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
         }
     // default to light mode (darkMode off)
     if (ui.setDarkMode) ui.setDarkMode(false);
@@ -331,6 +396,7 @@ async function switchLevel(index) {
     gameObjects = new GameObjects(sceneSetup.scene, levelData, darkMode);
     if (gameObjects && typeof gameObjects.setDarkMode === 'function') {
         gameObjects.setDarkMode(darkMode);
+        if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
     }
     gameLogic = new GameLogic(levelData);
 
@@ -651,6 +717,7 @@ async function loadNextLevel() {
         // Apply dark mode to new objects
         if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
             gameObjects.setDarkMode(darkMode);
+            if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
         }
         
         // Reset physics

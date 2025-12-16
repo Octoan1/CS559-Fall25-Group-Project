@@ -280,6 +280,15 @@
             background: #46a5bf;
             border-color: #5bb5cf;
         }
+        /* Visual for disabled toggles */
+        .toggle-checkbox:disabled + .toggle-track {
+            opacity: 0.45;
+            filter: grayscale(60%);
+            cursor: not-allowed;
+        }
+        .toggle-checkbox:disabled + .toggle-track .toggle-thumb {
+            background: #ddd;
+        }
         .toggle-checkbox:checked + .toggle-track .toggle-thumb {
             transform: translateX(22px);
         }
@@ -425,6 +434,11 @@
                 <span class="toggle-track"><span class="toggle-thumb"></span></span>
                 <span>Dark Mode</span>
             </label>
+            <label class="settings-toggle">
+                <input type="checkbox" id="prototypeModeCheckbox" class="toggle-checkbox">
+                <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                <span>Prototype Mode (low-detail)</span>
+            </label>
             <button id="menuBtn" class="menu-button secondary">Main Menu</button>
             <button id="closeSettingsBtn" class="menu-button ghost">Back</button>
         </div>
@@ -468,8 +482,9 @@
                 </ul>
                 <strong>Game Modes</strong>
                 <ul>
-                    <li><strong>Endless</strong>: Procedurally generated, replayable levels. Objective: reach the hole.</li>
-                    <li><strong>Race / Level</strong>: Pre-designed levels with specific challenges.</li>
+                    <li><strong>Endless</strong>: Procedurally generated, endless levels. Objective: reach the hole.</li>
+                    <li><strong>Race</strong>: A timed, high-score variant of <strong>Endless</strong> mode where you must complete the level within a strict time limit.</li>
+                    <li><strong>Level</strong>: Pre-designed levels with specific challenges.</li>
                 </ul>
                 <p>Tip: Toggle <em>Dark Mode</em> in Settings for an alternate look.</p>
             </div>
