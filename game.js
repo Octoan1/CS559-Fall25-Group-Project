@@ -334,8 +334,8 @@ async function initializeGame() {
     if (typeof prototypeMode !== 'undefined' && gameObjects && typeof gameObjects.setPrototypeMode === 'function') {
         gameObjects.setPrototypeMode(prototypeMode);
     }
-    // default prototype off
-    if (ui.setPrototypeMode) ui.setPrototypeMode(false);
+    // set UI prototype checkbox to current persisted value
+    if (ui.setPrototypeMode) ui.setPrototypeMode(Boolean(prototypeMode));
         // Apply current dark-mode setting after obstacles are created
         if (typeof darkMode !== 'undefined' && gameObjects && typeof gameObjects.setDarkMode === 'function') {
             gameObjects.setDarkMode(darkMode);
@@ -426,6 +426,9 @@ async function switchLevel(index) {
         // cellSize chosen to match GameObjects.createObstacles mapping (20 / cols etc.)
         const cellSize = 1; // matches populateFromGrid mapping used elsewhere
         gameObjects.populateFromGrid(gridArr, { cellSize: cellSize, obstacleSize: { w: 1, d: 1, h: 0.5 }, visible: true });
+        // re-apply prototype/dark mode after regenerating obstacles so the new meshes follow current settings
+        if (gameObjects && typeof gameObjects.setPrototypeMode === 'function') gameObjects.setPrototypeMode(prototypeMode);
+        if (gameObjects && typeof gameObjects.setDarkMode === 'function') gameObjects.setDarkMode(darkMode);
     }
 
     // Update UI selection

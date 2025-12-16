@@ -226,6 +226,8 @@ class GameObjects {
             texture.repeat.set(4, 4);
             this.woodTexture = texture;
             // Apply texture if not in dark mode
+            // Don't apply textures if prototype mode is active — prototypes use simple materials
+            if (this._prototypeMode) return;
             const darkModeCheckbox = document.getElementById('darkModeCheckbox');
             if (!darkModeCheckbox || !darkModeCheckbox.checked) {
                 if (this.platformMesh && this.platformMesh.material) {
@@ -246,6 +248,8 @@ class GameObjects {
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(4, 4);
             this.stoneTexture = texture;
+            // Don't apply textures if prototype mode is active
+            if (this._prototypeMode) return;
             // Apply texture if in dark mode
             const darkModeCheckbox = document.getElementById('darkModeCheckbox');
             if (darkModeCheckbox && darkModeCheckbox.checked) {
