@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Going Marbles!</title>
+        <!-- Prevent favicon 404 by providing a small data URI icon -->
+        <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAGAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////wAA" />
     <style>
         body {
             margin: 0;
@@ -503,12 +505,26 @@
             const close = document.getElementById('infoClose');
             const closeBtn = document.getElementById('infoCloseBtn');
 
+            // Manage modal visibility and focus to avoid aria-hidden on focused elements
             function openModal() {
                 if (!modal) return;
+                // show modal
                 modal.setAttribute('aria-hidden', 'false');
+                // move focus into modal (close button)
+                const focusTarget = modal.querySelector('[id^=infoClose]') || modal.querySelector('button, [tabindex]');
+                if (focusTarget && typeof focusTarget.focus === 'function') {
+                    focusTarget.focus();
+                }
             }
+
             function closeModal() {
                 if (!modal) return;
+                // if any element inside modal has focus, move focus back to the info button
+                const active = document.activeElement;
+                if (modal.contains(active)) {
+                    try { infoBtn && infoBtn.focus(); } catch (e) {}
+                }
+                // hide modal
                 modal.setAttribute('aria-hidden', 'true');
             }
 

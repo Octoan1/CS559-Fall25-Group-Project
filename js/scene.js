@@ -1,6 +1,40 @@
 // Scene and graphics initialization
 class SceneSetup {
+    static isWebGLAvailable() {
+        try {
+            const canvas = document.createElement('canvas');
+            return !!(window.WebGLRenderingContext && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')));
+        } catch (e) {
+            return false;
+        }
+    }
+
     constructor() {
+        // If WebGL is not available, show a friendly overlay and skip renderer setup
+        if (!SceneSetup.isWebGLAvailable()) {
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.left = overlay.style.top = '0';
+            overlay.style.width = overlay.style.height = '100%';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.background = 'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(220,240,255,0.9))';
+            overlay.style.zIndex = 2000;
+            overlay.innerHTML = `<div style="max-width:720px;padding:24px;border-radius:12px;text-align:center;color:#111;font-family:Arial, sans-serif;">
+                <h2 style="margin-top:0;">WebGL unavailable</h2>
+                <p>Your browser or system doesn't appear to support WebGL. Try enabling hardware acceleration, updating your browser or GPU drivers, or opening this page in Chrome or Firefox.</p>
+                <p style="margin-top:12px;"><button id="webglDismiss" style="padding:8px 12px;border-radius:8px;border:none;background:#0078d4;color:white;cursor:pointer;">Dismiss</button></p>
+            </div>`;
+            document.body.appendChild(overlay);
+            const btn = document.getElementById('webglDismiss');
+            if (btn) btn.addEventListener('click', () => overlay.remove());
+            // Set minimal properties so other code can check for renderer presence
+            this.renderer = null;
+            this.scene = new THREE.Scene();
+            return;
+        }
+
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x87ceeb);
         
@@ -14,13 +48,35 @@ class SceneSetup {
         this.camera.lookAt(0, 0, 0);
 
         // Make renderer transparent so the page background gradient can show through
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
-        // clear color alpha 0 to allow CSS background to be visible where scene.background is null
-        this.renderer.setClearColor(0x000000, 0);
-        this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
-        document.body.appendChild(this.renderer.domElement);
+        try {
+            this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            // clear color alpha 0 to allow CSS background to be visible where scene.background is null
+            this.renderer.setClearColor(0x000000, 0);
+            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+            document.body.appendChild(this.renderer.domElement);
+        } catch (err) {
+            console.error('WebGL renderer creation failed:', err);
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.left = overlay.style.top = '0';
+            overlay.style.width = overlay.style.height = '100%';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.background = 'rgba(0,0,0,0.85)';
+            overlay.style.zIndex = 2000;
+            overlay.innerHTML = `<div style="max-width:720px;padding:24px;border-radius:12px;text-align:center;color:#fff;font-family:Arial, sans-serif;">
+                <h2 style="margin-top:0;">WebGL initialization failed</h2>
+                <p>Could not create a WebGL context. Try reloading the page, enabling hardware acceleration, or switching browsers.</p>
+                <p style="margin-top:12px;"><button id="webglDismiss2" style="padding:8px 12px;border-radius:8px;border:none;background:#0078d4;color:white;cursor:pointer;">Dismiss</button></p>
+            </div>`;
+            document.body.appendChild(overlay);
+            const btn2 = document.getElementById('webglDismiss2');
+            if (btn2) btn2.addEventListener('click', () => overlay.remove());
+            this.renderer = null;
+        }
 
         this.setupLighting();
         this.setupWindowResize();
@@ -212,11 +268,14 @@ class SceneSetup {
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
-            this.renderer.setSize(window.innerWidth, window.innerHeight);
+            if (this.renderer && typeof this.renderer.setSize === 'function') this.renderer.setSize(window.innerWidth, window.innerHeight);
+            if (this.skyUniforms) this.skyUniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+            if (this.lightSkyUniforms) this.lightSkyUniforms.resolution.value.set(window.innerWidth, window.innerHeight);
         });
     }
 
     render(scene, camera) {
+        if (!this.renderer) return; // renderer may be null when WebGL unavailable
         this.renderer.render(scene, camera);
     }
 }
