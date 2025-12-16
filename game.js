@@ -695,8 +695,11 @@ function animate() {
         if (ui && ui.setTimer) ui.setTimer(raceTimeRemaining);
         // Handle time expiry when not transitioning
         if (prev > 0 && raceTimeRemaining === 0 && !gameState.isWon) {
-            // Race over -> show results overlay
+            // Race over -> stop the ball and show results overlay
             platformController.enabled = false;
+            if (marblePhysics) {
+                marblePhysics.velocity.set(0, 0, 0);
+            }
             try { if (gameObjects && gameObjects.getMarble) gameObjects.getPlatformGroup().remove(gameObjects.getMarble()); } catch (e) {}
             showRaceResults();
         }
@@ -709,10 +712,24 @@ function animate() {
     }
 
     // simple timer/started detection (uses marblePhysics.velocity)
-    if (!gameState.isWon && !gameState.isTransitioning) {
+    if (!gameState.isWon && !gameState.isTransitioning && gameObjects) {
         // Update platform rotation
         platformController.update(deltaTime);
         platformController.applyRotationToPlatform(gameObjects.getPlatformGroup());
+
+        // Convert goal world coordinates back to grid coordinates
+        let holeGridCell = null;
+        if (levelData && levelData.goal) {
+            const cols = levelData.gridCols || 20;
+            const rows = levelData.gridRows || 20;
+            const cellSizeX = levelData.cellSizeX || (20 / cols);
+            const cellSizeZ = levelData.cellSizeZ || (20 / rows);
+            // Reverse: x = (col + 0.5 - cols/2) * cellSize
+            // So: col = x/cellSize + cols/2 - 0.5
+            const col = Math.round(levelData.goal.x / cellSizeX + cols / 2 - 0.5);
+            const row = Math.round(levelData.goal.z / cellSizeZ + rows / 2 - 0.5);
+            holeGridCell = [col, row];
+        }
 
         // Update physics
         physicsEngine.update(
@@ -722,7 +739,8 @@ function animate() {
             gameObjects.getMarble(),
             deltaTime,
             levelData && levelData.goal ? levelData.goal : null,
-            levelData && levelData.goal ? levelData.goal.radius ?? 0.8 : 0.8
+            levelData && levelData.goal ? levelData.goal.radius ?? 0.8 : 0.8,
+            holeGridCell
         );
 
         // update UI timer if UI available (skip for race mode which uses countdown, skip if paused)
@@ -741,8 +759,10 @@ function animate() {
         }
 
         // Check win condition - ball must fall through the hole
+        // In race mode, prevent winning after time has expired
         const marbleRadius = 0.5;
-        if (levelData && levelData.goal) {
+        const canWin = gameMode !== 'race' || raceTimeRemaining > 0;
+        if (canWin && levelData && levelData.goal) {
             const goal = levelData.goal;
             const dx = gameObjects.getMarble().position.x - goal.x;
             const dz = gameObjects.getMarble().position.z - goal.z;
@@ -813,9 +833,8 @@ function animate() {
                         }
                     }
                 } else {
-                    // If we've committed (75% in) and are clearly below the top plane,
-                    // count it as a win even if not perfectly centered over the hole.
-                    if (!animate._finished && committed75 && marbleY < (platformTop - 0.2)) {
+                    // If we've committed (90% in) and have fallen past the platform, count as a win.
+                    if (!animate._finished && committed75 && marbleY < (platformTop + 0.1)) {
                         animate._finished = true;
                         gameState.win();
                         gameLogic.updateUI(gameState);
@@ -898,8 +917,8 @@ function showRaceResults() {
     const tryBtn = document.getElementById('raceTryAgainBtn');
     const menuBtn = document.getElementById('raceMainMenuBtn');
 
-    if (levelsEl) levelsEl.textContent = `Levels beaten: ${raceScore}`;
-    if (hsEl) hsEl.textContent = `High score: ${raceHighScore}`;
+    if (levelsEl) levelsEl.textContent = `Levels Beaten: ${raceScore}`;
+    if (hsEl) hsEl.textContent = `High Score: ${raceHighScore}`;
 
     overlay.classList.remove('hidden');
 

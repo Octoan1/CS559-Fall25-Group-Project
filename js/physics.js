@@ -6,7 +6,7 @@ class PhysicsEngine {
         this.rollingFriction = 0.995;
     }
 
-    update(marblePhysics, gameState, obstacles, marble, deltaTime, holePosition = null, holeRadius = 0.8) {
+    update(marblePhysics, gameState, obstacles, marble, deltaTime, holePosition = null, holeRadius = 0.8, holeGridCell = null) {
         // Check if marble is on the platform
         const platformY = 0.0; // Platform top surface (platform box has height 1 and is centered at y=-0.5)
         const marbleRadius = 0.5; // Marble radius used throughout collision calculations
@@ -21,14 +21,14 @@ class PhysicsEngine {
             isOverHole = distToHole < (holeRadius - marbleRadius * 0.5);
         }
         
-        // Commit to falling once more than 75% of the ball has crossed the top plane of platform
-        // 75% threshold: center below platformTop + marbleRadius*0.25
-        if (!marblePhysics.fallCommitted && isOverHole && marblePhysics.position.y < (platformY + marbleRadius * 0.25)) {
+        // Commit to falling once more than 90% of the ball has crossed the top plane of platform
+        // 90% threshold: center below platformTop + marbleRadius*0.1
+        if (!marblePhysics.fallCommitted && isOverHole && marblePhysics.position.y < (platformY + marbleRadius * 0.1)) {
             marblePhysics.fallCommitted = true;
         }
 
         // Treat as effectively over hole if we've committed and are still within the upper half height
-        const effectiveOverHole = isOverHole || (marblePhysics.fallCommitted && marblePhysics.position.y < (platformY + marbleRadius));
+        const effectiveOverHole = isOverHole || (marblePhysics.fallCommitted && marblePhysics.position.y < (platformY + marbleRadius * 0.2));
 
         gameState.ballGrounded = marblePhysics.position.y <= platformY + 0.5 && !effectiveOverHole;
 
@@ -59,7 +59,8 @@ class PhysicsEngine {
         }
 
         // Update position
-        marblePhysics.position.add(new THREE.Vector3(marblePhysics.velocity.x * deltaTime, marblePhysics.velocity.y * deltaTime, marblePhysics.velocity.z * deltaTime));
+        const positionDelta = new THREE.Vector3(marblePhysics.velocity.x * deltaTime, marblePhysics.velocity.y * deltaTime, marblePhysics.velocity.z * deltaTime);
+        marblePhysics.position.add(positionDelta);
 
         // Obstacle collision (simple sphere vs AABB)
         // Marble is treated as a sphere with radius 0.5 (matches geometry)
@@ -83,18 +84,18 @@ class PhysicsEngine {
                 const minY = oy - halfY, maxY = oy + halfY;
                 const minZ = oz - halfZ, maxZ = oz + halfZ;
 
-                // If the marble is over the hole (or has committed to fall), allow it to fall through
-                // by disabling obstacle collisions directly under the hole footprint.
-                // This keeps other obstacles active so the player still must cross them.
-                if ((isOverHole || marblePhysics.fallCommitted) && holePosition) {
-                    // 2D circle (hole) vs AABB (obstacle top-down) intersection test
-                    const closestHX = Math.max(minX, Math.min(holePosition.x, maxX));
-                    const closestHZ = Math.max(minZ, Math.min(holePosition.z, maxZ));
-                    const ddx = holePosition.x - closestHX;
-                    const ddz = holePosition.z - closestHZ;
-                    if ((ddx * ddx + ddz * ddz) <= (holeRadius * holeRadius)) {
-                        // Skip collision response for this obstacle when over the hole
-                        continue;
+                // If an obstacle is in the same grid cell as the hole, skip its collision
+                // when marble is either (a) committed to falling, OR (b) is over the hole and moving down
+                if (holeGridCell && obs.gridCell) {
+                    if (obs.gridCell[0] === holeGridCell[0] && obs.gridCell[1] === holeGridCell[1]) {
+                        // Check if marble should pass through this obstacle
+                        const isCommitted = marblePhysics.fallCommitted;
+                        const overHole = isOverHole; // use the isOverHole from earlier
+                        const isMovingDown = marblePhysics.velocity && marblePhysics.velocity.y < -0.1;
+                        
+                        if (isCommitted || (overHole && isMovingDown)) {
+                            continue;
+                        }
                     }
                 }
 

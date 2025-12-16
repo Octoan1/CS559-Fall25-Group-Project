@@ -307,7 +307,7 @@ class GameObjects {
 
     // Create an obstacle. If `visible` is false, no THREE.Mesh is created
     // and the obstacle exists only as logical collision data.
-    createObstacle(x, z, width, depth, height = 0.3, visible = true) {
+    createObstacle(x, z, width, depth, height = 0.3, visible = true, gridCell = null) {
         let mesh = null;
         if (visible) {
             // Create a deterministic seed based on position
@@ -333,6 +333,7 @@ class GameObjects {
             width: width,
             depth: depth,
             height: mesh && mesh.userData.visualHeight ? mesh.userData.visualHeight : height,
+            gridCell: gridCell,
         });
     }
 
@@ -492,7 +493,7 @@ class GameObjects {
                 const width = wUnits * cellSizeX;
                 const depth = dUnits * cellSizeZ;
                 // use a thin wall height to act as obstacle
-                this.createObstacle(x, z, width, depth, 0.5);
+                this.createObstacle(x, z, width, depth, 0.5, true, [col, row]);
             }
             return;
         }
