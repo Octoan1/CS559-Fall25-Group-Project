@@ -309,9 +309,30 @@
             gap: 14px;
             text-align: center;
         }
-        .results-title { font-size: 28px; font-weight: 800; }
-        .results-stats { font-size: 20px; display: flex; flex-direction: column; gap: 6px; }
-        .results-actions { margin-top: 8px; display: flex; gap: 10px; justify-content: center; }
+        .results-title { font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+        .results-stats { 
+            font-size: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 16px; 
+            margin: 20px 0;
+        }
+        .results-stats > div {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .results-stats > div:first-child {
+            color: #4fc3f7;
+            border-left: 4px solid #4fc3f7;
+        }
+        .results-stats > div:last-child {
+            color: #ffd54f;
+            border-left: 4px solid #ffd54f;
+        }
+        .results-actions { margin-top: 12px; display: flex; gap: 10px; justify-content: center; }
         .results-actions .menu-button { font-size: 18px; padding: 10px 22px; }
         /* Bonus +2 overlay */
         .bonus-overlay {
