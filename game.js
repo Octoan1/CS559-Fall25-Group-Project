@@ -571,6 +571,46 @@ async function startLevelTransition() {
             newObstacles.push({ mesh: obstacle, x: x, z: z, width: width, depth: depth, height: visualHeight });
         }
         
+        // If Prototype Mode is active, convert the newly created transition meshes
+        // to the simplified prototype visuals (flat materials, cubes for obstacles).
+        if (prototypeMode) {
+            try {
+                // Platform: flat basic material
+                if (newPlatform) {
+                    if (newPlatform.material && newPlatform.material.dispose) newPlatform.material.dispose();
+                    newPlatform.material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                    newPlatform.castShadow = false;
+                    newPlatform.receiveShadow = false;
+                }
+
+                // Marble: simple basic material
+                if (newMarble) {
+                    try { if (newMarble.material && newMarble.material.dispose) newMarble.material.dispose(); } catch (e) {}
+                    const mColor = darkMode ? 0x00aaff : 0xff6347;
+                    newMarble.material = new THREE.MeshBasicMaterial({ color: mColor });
+                    newMarble.castShadow = false;
+                    newMarble.receiveShadow = false;
+                }
+
+                // Obstacles: convert to uniform-height boxes and flat material
+                const protoHeight = 0.8;
+                for (const o of newObstacles) {
+                    if (!o.mesh) continue;
+                    try { if (o.mesh.geometry && o.mesh.geometry.dispose) o.mesh.geometry.dispose(); } catch (e) {}
+                    o.mesh.geometry = new THREE.BoxGeometry(o.width, protoHeight, o.depth);
+                    o.mesh.position.y = protoHeight / 2;
+                    o.height = protoHeight;
+                    if (o.mesh.material && o.mesh.material.dispose) try { o.mesh.material.dispose(); } catch (e) {}
+                    o.mesh.material = new THREE.MeshBasicMaterial({ color: darkMode ? 0x777788 : 0x808080 });
+                    o.mesh.castShadow = false;
+                    o.mesh.receiveShadow = false;
+                }
+            } catch (e) {
+                // ignore prototype conversion errors to avoid breaking transition
+                console.warn('Prototype conversion during transition failed', e);
+            }
+        }
+
         
         // Position new platform off-screen to the right
         newPlatformGroup.position.x = 60;

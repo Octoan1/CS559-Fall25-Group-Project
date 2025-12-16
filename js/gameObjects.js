@@ -547,10 +547,13 @@ class GameObjects {
                     if (obs.mesh.geometry && obs.mesh.geometry.dispose) obs.mesh.geometry.dispose();
                 } catch (e) { /* ignore dispose errors */ }
 
-                const boxGeo = new THREE.BoxGeometry(obs.width, obs.height || 0.5, obs.depth);
+                // Use a uniform prototype height so all cubes match visually
+                const protoHeight = 0.8;
+                const boxGeo = new THREE.BoxGeometry(obs.width, protoHeight, obs.depth);
                 obs.mesh.geometry = boxGeo;
-                // Position the cube so it sits flush on the platform
-                obs.mesh.position.y = (obs.height || obs.mesh.userData && obs.mesh.userData.visualHeight) ? (obs.height / 2) : (0.5 / 2);
+                // Position the cube so it sits flush on the platform and update logical height
+                obs.mesh.position.y = protoHeight / 2;
+                obs.height = protoHeight;
 
                 const color = this.darkMode ? 0x777788 : 0x808080;
                 obs.mesh.material = new THREE.MeshBasicMaterial({ color });
